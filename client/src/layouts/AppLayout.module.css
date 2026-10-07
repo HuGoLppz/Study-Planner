@@ -1,0 +1,53 @@
+.app {
+  display: grid;
+  grid-template-columns: var(--rail-width) minmax(0, 1fr);
+  min-height: 100dvh;
+}
+
+.sheet {
+  min-width: 0;
+  min-height: calc(100dvh - 24px);
+  margin: 12px 12px 12px 0;
+  border-radius: var(--radius-sheet);
+  background: var(--sheet);
+  outline: none;
+}
+
+.skip {
+  position: absolute;
+  left: 12px;
+  top: -100px;
+  z-index: 100;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: var(--primary-bg);
+  color: var(--primary-fg);
+  font-weight: 650;
+}
+
+.skip:focus {
+  top: 12px;
+}
+
+@media (max-width: 1099px) {
+  .app {
+    grid-template-columns: var(--rail-compact) minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 767px) {
+  .app {
+    display: block;
+    background: var(--sheet);
+  }
+
+  .sheet {
+    margin: 0;
+    min-height: calc(100dvh - var(--topbar-height));
+    border-radius: 0;
+  }
+
+  .app[data-immersive] .sheet {
+    min-height: 100dvh;
+  }
+}

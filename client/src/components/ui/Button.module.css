@@ -1,0 +1,146 @@
+.button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  border-radius: var(--radius-control);
+  border: 1px solid transparent;
+  font-weight: 620;
+  line-height: 1;
+  white-space: nowrap;
+  text-decoration: none;
+  transition:
+    background-color var(--duration) var(--ease-out),
+    border-color var(--duration) var(--ease-out),
+    color var(--duration) var(--ease-out),
+    transform 120ms var(--ease-out);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.button:disabled {
+  opacity: 0.55;
+}
+
+.sm {
+  height: 32px;
+  padding: 0 12px;
+  font-size: var(--fs-14);
+}
+
+.md {
+  height: 40px;
+  padding: 0 16px;
+  font-size: var(--fs-14);
+}
+
+.lg {
+  height: 48px;
+  padding: 0 22px;
+  font-size: var(--fs-16);
+}
+
+.block {
+  width: 100%;
+}
+
+.primary {
+  background: var(--primary-bg);
+  color: var(--primary-fg);
+}
+
+.primary:hover:not(:disabled) {
+  background: var(--primary-hover);
+}
+
+.secondary {
+  background: var(--sheet);
+  color: var(--ink);
+  border-color: var(--rule-strong);
+}
+
+.secondary:hover:not(:disabled) {
+  background: var(--sheet-2);
+  border-color: var(--ink-3);
+}
+
+.ghost {
+  background: transparent;
+  color: var(--ink);
+}
+
+.ghost:hover:not(:disabled) {
+  background: var(--sheet-2);
+}
+
+.danger {
+  background: var(--red-pen);
+  color: var(--sheet);
+}
+
+.danger:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+
+.dangerGhost {
+  background: transparent;
+  color: var(--red-pen);
+}
+
+.dangerGhost:hover:not(:disabled) {
+  background: var(--red-wash);
+}
+
+.iconButton {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  border-radius: var(--radius-control);
+  color: var(--ink-2);
+  transition: background-color var(--duration) var(--ease-out), color var(--duration) var(--ease-out);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.iconButton:hover:not(:disabled) {
+  color: var(--ink);
+}
+
+.iconButton.secondary {
+  color: var(--ink);
+}
+
+.icon-sm {
+  width: 32px;
+  height: 32px;
+}
+
+.icon-md {
+  width: 40px;
+  height: 40px;
+}
+
+.icon-lg {
+  width: 48px;
+  height: 48px;
+}
+
+.badge {
+  position: absolute;
+  top: 4px;
+  right: 2px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--marker);
+  color: var(--on-marker);
+  font-size: 11px;
+  font-weight: 760;
+  line-height: 18px;
+  text-align: center;
+  box-shadow: 0 0 0 2px var(--canvas);
+}

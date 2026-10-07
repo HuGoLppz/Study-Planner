@@ -1,0 +1,382 @@
+/* Gráficas: marcas finas, rejilla en línea fina y continua, texto siempre en tokens de tinta */
+
+.tooltip {
+  position: absolute;
+  z-index: 5;
+  min-width: 150px;
+  max-width: 240px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--primary-bg);
+  color: var(--primary-fg);
+  box-shadow: var(--shadow-pop);
+  font-size: var(--fs-12);
+  pointer-events: none;
+  transform: translate(-50%, -100%);
+}
+
+.tooltipTitle {
+  margin-bottom: 4px;
+  opacity: 0.85;
+  overflow-wrap: anywhere;
+}
+
+.tooltipRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tooltipRow strong {
+  font-size: var(--fs-14);
+  font-weight: 760;
+}
+
+.tooltipKey {
+  width: 12px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--chart-accent);
+}
+
+.tooltipKey[data-kind='dot'] {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--chart-muted);
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 16px;
+  font-size: var(--fs-12);
+  color: var(--ink-2);
+}
+
+.legendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.legendItem strong {
+  color: var(--ink);
+}
+
+.legendSwatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  background: var(--chart-accent);
+}
+
+.legendSwatch[data-kind='pending'] {
+  background: var(--chart-muted);
+}
+
+.legendSwatch[data-kind='overdue'] {
+  background: var(--chart-alert);
+}
+
+.legendLine {
+  width: 16px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--chart-accent);
+}
+
+.legendDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--chart-muted);
+}
+
+.legendTotal {
+  margin-left: auto;
+  color: var(--ink);
+  font-weight: 650;
+}
+
+/* Medias por asignatura */
+.averageFigure {
+  --name-col: 140px;
+  --value-room: 40px;
+}
+
+.averageRows {
+  position: relative;
+  display: grid;
+  gap: 6px;
+  padding-top: 24px;
+}
+
+.averageRow {
+  display: grid;
+  grid-template-columns: var(--name-col) minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+}
+
+.averageName {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: var(--fs-14);
+  font-weight: 540;
+}
+
+.averageTrack {
+  position: relative;
+  display: block;
+  height: 28px;
+  margin-right: var(--value-room);
+  border-radius: 4px;
+  outline-offset: 2px;
+}
+
+.averageTrack::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1px;
+  background: var(--chart-grid);
+}
+
+.averageBar {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  height: 12px;
+  transform: translateY(-50%);
+  border-radius: 0 4px 4px 0;
+  background: var(--chart-accent);
+  transition: width 400ms var(--ease-out);
+}
+
+.averageValue {
+  position: absolute;
+  top: 50%;
+  transform: translate(6px, -50%);
+  font-size: var(--fs-12);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.referenceLine {
+  position: absolute;
+  top: 0;
+  bottom: 22px;
+  left: calc(var(--name-col) + 12px + (100% - var(--name-col) - 12px - var(--value-room)) * var(--at));
+  width: 2px;
+  margin-left: -1px;
+  background: var(--ink);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.referenceLabel {
+  position: absolute;
+  top: -2px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 0 6px;
+  background: var(--sheet);
+  font-size: var(--fs-12);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.averageAxis {
+  display: grid;
+  grid-template-columns: var(--name-col) minmax(0, 1fr);
+  gap: 12px;
+}
+
+.axisTicks {
+  position: relative;
+  height: 16px;
+  margin-right: var(--value-room);
+  font-size: 11px;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.axisTicks span {
+  position: absolute;
+  transform: translateX(-50%);
+}
+
+/* Progreso */
+.meterFigure {
+  display: grid;
+  gap: 10px;
+}
+
+.meter {
+  display: flex;
+  gap: 2px;
+  height: 14px;
+  overflow: hidden;
+  border-radius: 4px;
+}
+
+.meter[data-size='sm'] {
+  height: 8px;
+}
+
+.meterEmpty {
+  flex: 1;
+  background: var(--chart-grid);
+}
+
+.meterSegment {
+  min-width: 4px;
+  background: var(--chart-accent);
+}
+
+.meterSegment[data-kind='pending'] {
+  background: var(--chart-muted);
+}
+
+.meterSegment[data-kind='overdue'] {
+  background: var(--chart-alert);
+}
+
+/* Evolución */
+.evolution {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.plot {
+  position: relative;
+  width: 100%;
+}
+
+.plot svg {
+  overflow: visible;
+}
+
+.plot svg:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 4px;
+}
+
+.gridLine {
+  stroke: var(--chart-grid);
+  stroke-width: 1;
+}
+
+.axisText {
+  fill: var(--ink-2);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.crosshair {
+  stroke: var(--ink-3);
+  stroke-width: 1;
+}
+
+.scoreDot {
+  fill: var(--chart-muted);
+  stroke: var(--sheet);
+  stroke-width: 2;
+  transition: r 120ms var(--ease-out);
+}
+
+.averageLine {
+  fill: none;
+  stroke: var(--chart-accent);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.averageDot {
+  fill: var(--chart-accent);
+  stroke: var(--sheet);
+  stroke-width: 2;
+}
+
+.endLabel {
+  fill: var(--ink);
+  font-size: var(--fs-14);
+  font-weight: 720;
+}
+
+/* Columnas */
+.columnsFigure {
+  display: grid;
+  gap: 6px;
+}
+
+.columns {
+  position: relative;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  align-items: end;
+  gap: 2px;
+  padding-top: 18px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.columnSlot {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  height: 100%;
+  border-radius: 4px;
+}
+
+.columnSlot:focus-visible {
+  outline-offset: 0;
+}
+
+.column {
+  width: min(24px, 70%);
+  border-radius: 4px 4px 0 0;
+  background: var(--chart-accent);
+  transition: height 400ms var(--ease-out), opacity var(--duration);
+}
+
+.column[data-empty] {
+  background: var(--chart-grid);
+}
+
+.columns:hover .column:not([data-active]) {
+  opacity: 0.55;
+}
+
+.columnValue {
+  position: absolute;
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.columnAxis {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 2px;
+  font-size: 11px;
+  color: var(--ink-2);
+  text-align: center;
+}
+
+@media (max-width: 767px) {
+  .averageFigure {
+    --name-col: 104px;
+  }
+}

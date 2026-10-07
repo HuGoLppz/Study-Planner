@@ -1,0 +1,608 @@
+.form {
+  display: grid;
+  gap: var(--space-5);
+}
+
+.footerStart {
+  margin-right: auto;
+}
+
+/* Listado de salas */
+.list {
+  display: grid;
+  border-top: 2px solid var(--ink);
+}
+
+.invitations {
+  margin-bottom: var(--space-7);
+}
+
+.invitation {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-4);
+  margin-top: var(--space-2);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--marker) 26%, var(--sheet));
+}
+
+.rowActions {
+  display: flex;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
+.roomRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto 140px;
+  align-items: center;
+  gap: var(--space-5);
+  padding: var(--space-4) 0;
+  border-bottom: 1px solid var(--rule);
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.roomRow:hover .roomName {
+  text-decoration: underline;
+}
+
+.roomMain {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.roomName {
+  --casl: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-21);
+  font-weight: 740;
+}
+
+.roomMeta {
+  display: flex;
+  align-items: center;
+  gap: 4px 12px;
+  flex-wrap: wrap;
+  color: var(--ink-2);
+  font-size: var(--fs-14);
+}
+
+.roomMeta > :first-child {
+  margin-left: 0.26em;
+}
+
+.roomDescription {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink-2);
+  font-size: var(--fs-14);
+}
+
+.roomStats {
+  display: flex;
+  gap: var(--space-4);
+  margin: 0;
+}
+
+.roomStats div {
+  display: grid;
+  justify-items: end;
+}
+
+.roomStats dt {
+  color: var(--ink-2);
+  font-size: var(--fs-12);
+}
+
+.roomStats dd {
+  margin: 0;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.activity {
+  color: var(--ink-2);
+  font-size: var(--fs-12);
+  text-align: right;
+}
+
+/* Sala (clase doble: debe ganar al padding genérico de .page sin depender del orden del CSS) */
+.roomPage.roomPage {
+  display: flex;
+  flex-direction: column;
+  padding-bottom: var(--space-5);
+}
+
+.back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: var(--space-4);
+  color: var(--ink-2);
+  font-size: var(--fs-14);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.back:hover {
+  color: var(--ink);
+}
+
+.roomHeader {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'back back'
+    'title actions';
+  align-items: end;
+  gap: 0 var(--space-4);
+  margin-bottom: var(--space-5);
+}
+
+.roomHeader .back {
+  grid-area: back;
+  justify-self: start;
+}
+
+.roomTitleBlock {
+  grid-area: title;
+  min-width: 0;
+}
+
+.roomTitle {
+  --casl: 1;
+  font-size: var(--fs-36);
+  font-weight: 780;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  overflow-wrap: anywhere;
+}
+
+.roomFacts {
+  display: flex;
+  align-items: center;
+  gap: 4px 14px;
+  flex-wrap: wrap;
+  margin-top: var(--space-2);
+  color: var(--ink-2);
+  font-size: var(--fs-14);
+}
+
+.roomFacts > :first-child {
+  margin-left: 0.26em;
+}
+
+.roomDescriptionInline {
+  max-width: 60ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.roomActions {
+  grid-area: actions;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.roomGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 400px);
+  gap: var(--space-5);
+  height: calc(100dvh - 262px);
+  min-height: 480px;
+}
+
+.chatColumn {
+  min-height: 0;
+  border: 1px solid var(--rule);
+  border-radius: 16px;
+  background: var(--sheet);
+  overflow: hidden;
+}
+
+.sideColumn {
+  min-width: 0;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.sideColumn .sideTabs {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--sheet);
+  margin-bottom: var(--space-4);
+}
+
+.panelBody {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.panelToolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.panelToolbar > :first-child {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.panelToolbar > :last-child {
+  flex-shrink: 0;
+}
+
+.panelToolbar [role='radiogroup'] {
+  margin-bottom: 0;
+  border-bottom: 0;
+}
+
+.panelHeading {
+  font-size: var(--fs-14);
+  font-weight: 700;
+}
+
+.createdBy {
+  color: var(--ink-2);
+  font-size: var(--fs-14);
+}
+
+/* Tareas de la sala */
+.taskList {
+  display: grid;
+}
+
+.taskRow {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: 10px 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.taskCheck {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  margin-top: 2px;
+  border-radius: 6px;
+  border: 2px solid var(--ink-3);
+  color: transparent;
+}
+
+.taskCheck:hover {
+  border-color: var(--ink);
+}
+
+.taskCheckLate {
+  border-color: var(--red-pen);
+}
+
+.taskCheckDone {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--sheet);
+}
+
+.taskMain {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  text-align: left;
+}
+
+.taskMain:hover .taskTitle {
+  text-decoration: underline;
+}
+
+.taskTitle {
+  font-weight: 580;
+  overflow-wrap: anywhere;
+}
+
+.taskDone .taskTitle {
+  color: var(--ink-2);
+  text-decoration: line-through;
+}
+
+.taskMeta {
+  display: flex;
+  align-items: center;
+  gap: 6px 10px;
+  flex-wrap: wrap;
+  color: var(--ink-2);
+  font-size: var(--fs-12);
+}
+
+/* Archivos */
+.dropzone {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: 1.5px dashed var(--rule-strong);
+  border-radius: 14px;
+  transition: background-color var(--duration), border-color var(--duration);
+}
+
+.dropzoneActive {
+  border-color: var(--ink);
+  background: color-mix(in srgb, var(--marker) 30%, var(--sheet));
+}
+
+.dropHint {
+  color: var(--ink-2);
+  font-size: var(--fs-12);
+}
+
+.progress {
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--chart-grid);
+  overflow: hidden;
+}
+
+.progress span {
+  display: block;
+  height: 100%;
+  background: var(--chart-accent);
+  transition: width 120ms linear;
+}
+
+.fileList {
+  display: grid;
+}
+
+.fileRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 10px 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.fileIcon {
+  flex-shrink: 0;
+  color: var(--ink);
+}
+
+.fileIcon :global(path[opacity]) {
+  fill: var(--marker);
+  opacity: 1;
+}
+
+.fileMain {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+}
+
+.fileName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.fileName:hover {
+  text-decoration: underline;
+}
+
+.fileMeta {
+  color: var(--ink-2);
+  font-size: var(--fs-12);
+}
+
+.fileAction {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  color: var(--ink-2);
+}
+
+.fileAction:hover {
+  background: var(--sheet-2);
+  color: var(--ink);
+}
+
+/* Personas */
+.memberList {
+  display: grid;
+}
+
+.memberRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 8px 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.memberText {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  font-size: var(--fs-14);
+  font-weight: 600;
+}
+
+.memberHandle {
+  color: var(--ink-2);
+  font-size: var(--fs-12);
+  font-weight: 450;
+}
+
+.crown {
+  color: var(--ink);
+}
+
+.crown :global(path) {
+  fill: var(--marker);
+  stroke: var(--ink);
+}
+
+.memberMenu {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  color: var(--ink-2);
+}
+
+.memberMenu:hover {
+  background: var(--sheet-2);
+  color: var(--ink);
+}
+
+.leave {
+  justify-self: start;
+  margin-top: var(--space-3);
+}
+
+.inviteList {
+  display: grid;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+
+.inviteRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 10px 4px;
+  border-bottom: 1px solid var(--rule);
+  cursor: pointer;
+}
+
+.inviteRow input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--ink);
+}
+
+@media (max-width: 1099px) {
+  .roomRow {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .roomStats,
+  .activity {
+    display: none;
+  }
+}
+
+/* Móvil: la sala ocupa toda la pantalla y el chat llega hasta abajo */
+@media (max-width: 767px) {
+  .roomRow {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-2);
+  }
+
+  .invitation {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .roomPage.roomPage {
+    height: 100dvh;
+    padding: var(--space-3) var(--space-4) 0;
+    overflow: hidden;
+  }
+
+  .roomFacts > :first-child {
+    flex-shrink: 0;
+    max-width: 50%;
+  }
+
+  .mobileTabs .mobileTabList svg {
+    display: none;
+  }
+
+  .mobileTabs .mobileTabList > * {
+    flex: 1 0 auto;
+    justify-content: center;
+    padding: 0 8px;
+  }
+
+  .roomHeader {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas: 'back title actions';
+    align-items: center;
+    gap: var(--space-2);
+    margin-bottom: var(--space-2);
+  }
+
+  .roomHeader .back {
+    margin: 0;
+    width: 40px;
+    height: 40px;
+    justify-content: center;
+  }
+
+  .roomTitle {
+    font-size: var(--fs-21);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .roomFacts {
+    margin-top: 0;
+    font-size: var(--fs-12);
+    flex-wrap: nowrap;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+
+  .mobileTabs {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+  }
+
+  .mobileTabs .mobileTabList {
+    margin: 0 calc(-1 * var(--space-4)) 0;
+    padding: 0 var(--space-2);
+  }
+
+  .mobileChat {
+    flex: 1;
+    min-height: 0;
+    margin: 0 calc(-1 * var(--space-4));
+  }
+
+  .mobileChat[hidden],
+  .mobilePanel[hidden] {
+    display: none;
+  }
+
+  .mobilePanel {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: var(--space-4) 0 calc(var(--space-6) + var(--safe-bottom));
+  }
+}

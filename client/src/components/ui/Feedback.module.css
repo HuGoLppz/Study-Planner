@@ -1,0 +1,92 @@
+.spinner {
+  animation: spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.skeleton {
+  display: block;
+  background: var(--sheet-3);
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.55;
+  }
+}
+
+.skeletonList {
+  display: grid;
+}
+
+.skeletonRow {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.skeletonLines {
+  flex: 1;
+  display: grid;
+  gap: 8px;
+}
+
+.empty {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-2);
+  padding: var(--space-6) 0;
+  max-width: 46ch;
+}
+
+.emptyCompact {
+  padding: var(--space-4) 0;
+  gap: 6px;
+}
+
+.emptyIcon {
+  color: var(--ink);
+  margin-bottom: var(--space-2);
+}
+
+/* El trazo secundario del icono duotono se pinta con el fluorescente */
+.emptyIcon :global(path[opacity]),
+.emptyIcon :global(rect[opacity]),
+.emptyIcon :global(circle[opacity]),
+.emptyIcon :global(polygon[opacity]) {
+  fill: var(--marker);
+  opacity: 1;
+}
+
+.emptyTitle {
+  font-weight: 650;
+  font-size: var(--fs-16);
+}
+
+.emptyText {
+  color: var(--ink-2);
+  font-size: var(--fs-14);
+}
+
+.emptyAction {
+  margin-top: var(--space-2);
+}
+
+.error .errorIcon {
+  color: var(--red-pen);
+}
+
+.pageLoader {
+  display: grid;
+  place-items: center;
+  min-height: 40vh;
+  color: var(--ink-2);
+}

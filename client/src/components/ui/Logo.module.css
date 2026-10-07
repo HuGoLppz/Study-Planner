@@ -1,0 +1,24 @@
+.logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.mark {
+  flex-shrink: 0;
+}
+
+:global([data-theme='dark']) .mark {
+  --logo-sheet: #e7e8f4;
+  --logo-lines: #161a3a;
+}
+
+.word {
+  --casl: 1;
+  font-size: var(--fs-18);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}

@@ -1,0 +1,207 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  /* Los ejes de Recursive se controlan con variables heredables */
+  font-variation-settings: 'CASL' var(--casl, 0), 'MONO' var(--mono, 0), 'CRSV' 0.5;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  background: var(--canvas);
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: var(--fs-16);
+  font-weight: 420;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+h1,
+h2,
+h3,
+h4,
+p,
+ul,
+ol,
+figure {
+  margin: 0;
+}
+
+ul,
+ol {
+  padding: 0;
+  list-style: none;
+}
+
+img,
+svg {
+  display: block;
+  max-width: 100%;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+  letter-spacing: inherit;
+}
+
+button {
+  cursor: pointer;
+  background: none;
+  border: 0;
+  padding: 0;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+a {
+  color: inherit;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+::selection {
+  background: var(--marker);
+  color: var(--on-marker);
+}
+
+/* Titulares en Recursive Casual: la tipografía de rotulador */
+.display {
+  --casl: 1;
+  font-weight: 760;
+  letter-spacing: -0.018em;
+  line-height: 1.08;
+  text-wrap: balance;
+}
+
+.page-title {
+  --casl: 1;
+  font-size: var(--fs-36);
+  font-weight: 780;
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+  text-wrap: balance;
+}
+
+.section-title {
+  --casl: 1;
+  font-size: var(--fs-21);
+  font-weight: 720;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+
+.muted {
+  color: var(--ink-2);
+}
+
+.small {
+  font-size: var(--fs-14);
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+.overdue-text {
+  color: var(--red-pen);
+}
+
+.visually-hidden {
+  position: absolute !important;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+/* Trazo de fluorescente: forma irregular detrás del texto */
+.swipe {
+  position: relative;
+  isolation: isolate;
+  display: inline-block;
+  color: var(--on-marker);
+}
+
+.swipe::before {
+  content: '';
+  position: absolute;
+  inset: 0.06em -0.32em -0.02em -0.26em;
+  z-index: -1;
+  background: var(--swipe, var(--marker));
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 40' preserveAspectRatio='none'%3E%3Cpath d='M6 6C52 3 128 5 195 3l3 8-4 9 5 10-3 6c-66 2-136 0-192 2l3-9-5-8 4-8z'/%3E%3C/svg%3E")
+    center / 100% 100% no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 40' preserveAspectRatio='none'%3E%3Cpath d='M6 6C52 3 128 5 195 3l3 8-4 9 5 10-3 6c-66 2-136 0-192 2l3-9-5-8 4-8z'/%3E%3C/svg%3E")
+    center / 100% 100% no-repeat;
+  transform: rotate(-0.8deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Sonner (toasts) con la identidad de la app */
+.sp-toast {
+  font-family: var(--font) !important;
+  background: var(--primary-bg) !important;
+  color: var(--primary-fg) !important;
+  border: 0 !important;
+  border-radius: var(--radius-pop) !important;
+  box-shadow: var(--shadow-pop) !important;
+  font-size: var(--fs-14) !important;
+}
+
+.sp-toast [data-description] {
+  color: inherit !important;
+  opacity: 0.8;
+}
+
+.sp-toast [data-button] {
+  background: var(--marker) !important;
+  color: var(--on-marker) !important;
+  font-weight: 650 !important;
+  border-radius: 6px !important;
+}
+
+.sp-toast[data-type='error'] {
+  background: var(--red-pen) !important;
+  color: var(--sheet) !important;
+}

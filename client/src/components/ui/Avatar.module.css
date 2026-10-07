@@ -1,0 +1,38 @@
+.avatar {
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+  overflow: hidden;
+  border-radius: 50%;
+  background: var(--avatar-fill, var(--hl-yellow));
+  color: var(--on-marker);
+  font-weight: 720;
+  letter-spacing: 0.01em;
+  line-height: 1;
+  user-select: none;
+}
+
+.avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.stack {
+  display: inline-flex;
+  align-items: center;
+}
+
+.stacked {
+  box-shadow: 0 0 0 2px var(--sheet);
+}
+
+.stacked + .stacked {
+  margin-left: -8px;
+}
+
+.more {
+  background: var(--sheet-3);
+  color: var(--ink-2);
+  font-size: 11px;
+}

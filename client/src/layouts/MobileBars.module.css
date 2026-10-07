@@ -1,0 +1,165 @@
+.topBar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: var(--topbar-height);
+  padding: 0 var(--space-3) 0 var(--space-4);
+  background: color-mix(in srgb, var(--sheet) 88%, transparent);
+  backdrop-filter: saturate(1.4) blur(14px);
+  -webkit-backdrop-filter: saturate(1.4) blur(14px);
+  border-bottom: 1px solid var(--rule);
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.brandWord {
+  --casl: 1;
+  font-weight: 800;
+  font-size: var(--fs-16);
+  letter-spacing: -0.02em;
+}
+
+.topActions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.topButton {
+  position: relative;
+  display: grid;
+  text-decoration: none;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  color: var(--ink);
+}
+
+.badge {
+  position: absolute;
+  top: 6px;
+  right: 4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--marker);
+  color: var(--on-marker);
+  font-size: 11px;
+  font-weight: 760;
+  line-height: 18px;
+  text-align: center;
+  box-shadow: 0 0 0 2px var(--sheet);
+}
+
+.bottomBar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 30;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  height: calc(var(--bottombar-height) + var(--safe-bottom));
+  padding-bottom: var(--safe-bottom);
+  background: color-mix(in srgb, var(--sheet) 94%, transparent);
+  backdrop-filter: saturate(1.4) blur(14px);
+  -webkit-backdrop-filter: saturate(1.4) blur(14px);
+  border-top: 1px solid var(--rule);
+}
+
+.tab {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 2px;
+  min-width: 0;
+  color: var(--ink-2);
+  font-size: 11px;
+  font-weight: 600;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.tabIcon {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 30px;
+  border-radius: 6px 14px 8px 15px;
+  transition: background-color var(--duration) var(--ease-out);
+}
+
+.tab:global(.active) {
+  color: var(--ink);
+}
+
+/* El destino activo se marca con un trazo de fluorescente bajo el icono */
+.tab:global(.active) .tabIcon {
+  background: var(--marker);
+  color: var(--on-marker);
+  transform: rotate(-2deg);
+}
+
+.tabLabel {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fab {
+  position: fixed;
+  right: var(--space-4);
+  bottom: calc(var(--bottombar-height) + var(--safe-bottom) + var(--space-4));
+  z-index: 25;
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 18px;
+  background: var(--primary-bg);
+  color: var(--primary-fg);
+  box-shadow: var(--shadow-pop);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.fab:active {
+  transform: scale(0.96);
+}
+
+.moreGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-2);
+  padding-bottom: var(--space-3);
+}
+
+.moreLink {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: var(--space-4) var(--space-2);
+  border-radius: 14px;
+  background: var(--sheet-2);
+  color: var(--ink);
+  font-size: var(--fs-14);
+  font-weight: 600;
+  text-decoration: none;
+  text-align: center;
+}
+
+.moreLink:global(.active) {
+  background: var(--marker);
+  color: var(--on-marker);
+}

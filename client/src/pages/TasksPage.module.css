@@ -1,0 +1,23 @@
+.summary {
+  margin-top: var(--space-4);
+  max-width: 560px;
+}
+
+.results {
+  transition: opacity var(--duration) var(--ease-out);
+}
+
+/* Al cambiar de filtro se mantiene la lista anterior atenuada, sin saltos */
+.results[data-stale] {
+  opacity: 0.55;
+}
+
+.more {
+  margin-top: var(--space-5);
+}
+
+@media (max-width: 767px) {
+  .newButton {
+    display: none;
+  }
+}

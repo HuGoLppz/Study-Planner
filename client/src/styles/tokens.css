@@ -1,0 +1,122 @@
+/*
+  Sistema visual de STUDY-PLANNER: tinta de bolígrafo sobre papel frío y fluorescentes para lo
+  que importa ahora. El tema se fija en <html data-theme> (ver index.html y useTheme).
+*/
+:root {
+  color-scheme: light;
+
+  /* Superficies */
+  --canvas: #e9ecf3;
+  --sheet: #ffffff;
+  --sheet-2: #f4f5fa;
+  --sheet-3: #eceef6;
+
+  /* Tinta */
+  --ink: #1b2463;
+  --ink-2: #525a8a;
+  --ink-3: #8c92b5;
+  --rule: #dadeea;
+  --rule-strong: #c3c8db;
+
+  /* Estado */
+  --marker: #f7e641;
+  --on-marker: #141a4a;
+  --red-pen: #c8243a;
+  --red-wash: #fbe8eb;
+  --done: #1f6f4a;
+
+  /* Acciones */
+  --primary-bg: var(--ink);
+  --primary-fg: #ffffff;
+  --primary-hover: #2a3480;
+  --focus-ring: #4453c9;
+
+  /* Gráficas (validadas: ver docs/ARCHITECTURE.md) */
+  --chart-accent: #4453c9;
+  --chart-alert: #c8243a;
+  --chart-muted: #b4b9d6;
+  --chart-grid: #e6e9f1;
+
+  /* Fluorescentes de asignatura (fondo bajo texto --on-marker) */
+  --hl-yellow: #f7e641;
+  --hl-pink: #ff9ecf;
+  --hl-green: #9bea8a;
+  --hl-orange: #ffb866;
+  --hl-blue: #8fd3ff;
+  --hl-lilac: #cdb4ff;
+  --hl-mint: #7fe8cf;
+  --hl-coral: #ff9c8a;
+
+  --shadow-pop: 0 18px 40px -18px rgb(27 36 99 / 0.35), 0 2px 8px rgb(27 36 99 / 0.08);
+  --shadow-lift: 0 1px 2px rgb(27 36 99 / 0.08);
+  --scrim: rgb(20 26 74 / 0.36);
+
+  /* Forma: el radio depende de la jerarquía, no es uno para todo */
+  --radius-sheet: 22px;
+  --radius-pop: 14px;
+  --radius-control: 9px;
+  --radius-chip: 6px;
+
+  /* Tipografía: Recursive. CASL 1 = rotulador (titulares), 0 = lineal (interfaz) */
+  --font: 'Recursive Variable', ui-sans-serif, system-ui, sans-serif;
+  --fs-12: 0.75rem;
+  --fs-14: 0.875rem;
+  --fs-16: 1rem;
+  --fs-18: 1.125rem;
+  --fs-21: 1.3125rem;
+  --fs-24: 1.5rem;
+  --fs-36: 2.25rem;
+  --fs-48: 3rem;
+  --fs-72: 4.5rem;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 64px;
+
+  --rail-width: 236px;
+  --rail-compact: 76px;
+  --topbar-height: 56px;
+  --bottombar-height: 64px;
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --duration: 180ms;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --canvas: #0c0f27;
+  --sheet: #161a3a;
+  --sheet-2: #1d2247;
+  --sheet-3: #252b55;
+
+  --ink: #e7e8f4;
+  --ink-2: #a6aacb;
+  --ink-3: #6f75a0;
+  --rule: #2b3163;
+  --rule-strong: #3a4178;
+
+  --red-pen: #ff6b7a;
+  --red-wash: #3a1d35;
+  --done: #7fd8a8;
+
+  --primary-bg: #e7e8f4;
+  --primary-fg: #161a3a;
+  --primary-hover: #ffffff;
+  --focus-ring: #8c97ff;
+
+  --chart-accent: #6f7cf2;
+  --chart-alert: #ee5468;
+  --chart-muted: #4a5288;
+  --chart-grid: #232954;
+
+  --shadow-pop: 0 20px 44px -16px rgb(0 0 0 / 0.6), 0 2px 8px rgb(0 0 0 / 0.3);
+  --shadow-lift: 0 1px 2px rgb(0 0 0 / 0.4);
+  --scrim: rgb(4 6 20 / 0.6);
+}

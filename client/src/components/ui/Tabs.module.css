@@ -1,0 +1,77 @@
+.list {
+  display: flex;
+  gap: 2px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  border-bottom: 1px solid var(--rule);
+  margin-bottom: var(--space-5);
+}
+
+.list::-webkit-scrollbar {
+  display: none;
+}
+
+.trigger {
+  position: relative;
+  isolation: isolate;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  min-height: 44px;
+  padding: 0 14px;
+  color: var(--ink-2);
+  font-size: var(--fs-14);
+  font-weight: 600;
+  white-space: nowrap;
+  transition: color var(--duration) var(--ease-out);
+}
+
+.trigger:hover {
+  color: var(--ink);
+}
+
+.trigger[data-state='active'] {
+  color: var(--ink);
+}
+
+.label {
+  position: relative;
+}
+
+/* La pestaña activa lleva el subrayado fluorescente detrás del texto */
+.trigger[data-state='active'] .label::before {
+  content: '';
+  position: absolute;
+  inset: 0.15em -0.3em 0 -0.25em;
+  z-index: -1;
+  background: var(--marker);
+  border-radius: 3px 6px 4px 7px;
+  transform: rotate(-1deg);
+  opacity: 0.9;
+}
+
+[data-theme='dark'] .trigger[data-state='active'] .label {
+  color: var(--on-marker);
+}
+
+.count {
+  min-width: 22px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--sheet-3);
+  color: var(--ink-2);
+  font-size: var(--fs-12);
+  font-weight: 650;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.alert .count {
+  background: var(--red-wash);
+  color: var(--red-pen);
+}
+
+.panel:focus-visible {
+  outline-offset: 6px;
+}

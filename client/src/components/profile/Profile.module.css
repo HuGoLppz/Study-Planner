@@ -1,0 +1,155 @@
+.identity {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-6);
+  margin-bottom: var(--space-7);
+}
+
+.avatarWrap {
+  flex-shrink: 0;
+}
+
+.identityText {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.identityText :global(.page-title) {
+  overflow-wrap: anywhere;
+}
+
+.handle {
+  color: var(--ink-2);
+  font-size: var(--fs-18);
+  font-weight: 560;
+}
+
+.academic {
+  font-weight: 560;
+}
+
+.bio {
+  margin-top: var(--space-2);
+  max-width: 62ch;
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+  white-space: pre-line;
+}
+
+.identityActions {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.academicGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+  gap: var(--space-7);
+}
+
+.academicGrid > * {
+  margin-top: 0 !important;
+}
+
+.subjects {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 8px;
+  padding-left: 0.3em;
+}
+
+.statsLine {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.statFigure {
+  font-size: var(--fs-48);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+
+.statText {
+  color: var(--ink-2);
+}
+
+.bars {
+  margin-top: var(--space-5);
+}
+
+.privateNote {
+  margin-top: var(--space-5);
+}
+
+/* Mi perfil */
+.avatarEditor {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: var(--space-2);
+}
+
+.avatarActions {
+  display: flex;
+  gap: 4px;
+}
+
+.settings {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-7);
+  margin-top: var(--space-8);
+  padding-top: var(--space-6);
+  border-top: 2px solid var(--ink);
+}
+
+.settings > * {
+  margin-top: 0 !important;
+}
+
+.stack {
+  display: grid;
+  gap: var(--space-5);
+}
+
+.form {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.logout {
+  margin-top: var(--space-7);
+}
+
+@media (max-width: 899px) {
+  .academicGrid,
+  .settings {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 767px) {
+  .identity {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-4);
+  }
+
+  .avatarWrap {
+    align-self: flex-start;
+  }
+
+  .handle {
+    font-size: var(--fs-16);
+  }
+
+  .identityActions > * {
+    flex: 1;
+  }
+}
