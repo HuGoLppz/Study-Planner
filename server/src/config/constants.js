@@ -1,27 +1,44 @@
 // Valores de dominio compartidos por modelos, validadores y servicios.
 // Los colores se guardan como nombres: el cliente decide el tono exacto según el tema.
 
-export const SUBJECT_COLORS = ['yellow', 'pink', 'green', 'orange', 'blue', 'lilac', 'mint', 'coral'];
+export const SUBJECT_COLORS = [
+  "yellow",
+  "pink",
+  "green",
+  "orange",
+  "blue",
+  "lilac",
+  "mint",
+  "coral",
+];
 
-export const TASK_TYPES = ['exam', 'assignment', 'project', 'reading', 'practice', 'presentation', 'other'];
-export const TASK_PRIORITIES = ['low', 'medium', 'high'];
-export const TASK_STATUSES = ['pending', 'in_progress', 'completed'];
+export const TASK_TYPES = [
+  "exam",
+  "assignment",
+  "project",
+  "reading",
+  "practice",
+  "presentation",
+  "other",
+];
+export const TASK_PRIORITIES = ["low", "medium", "high"];
+export const TASK_STATUSES = ["pending", "in_progress", "completed"];
 
-export const ROOM_ROLES = ['admin', 'member'];
+export const ROOM_ROLES = ["admin", "member"];
 
-export const PROFILE_VISIBILITY = ['public', 'friends', 'private'];
-export const THEMES = ['system', 'light', 'dark'];
+export const PROFILE_VISIBILITY = ["public", "friends", "private"];
+export const THEMES = ["system", "light", "dark"];
 
-export const POMODORO_PHASES = ['focus', 'break'];
+export const POMODORO_PHASES = ["focus", "break"];
 
 export const NOTIFICATION_TYPES = [
-  'friend_request',
-  'friend_accepted',
-  'room_invitation',
-  'room_member_joined',
-  'room_role_changed',
-  'room_task_assigned',
-  'task_due',
+  "friend_request",
+  "friend_accepted",
+  "room_invitation",
+  "room_member_joined",
+  "room_role_changed",
+  "room_task_assigned",
+  "task_due",
 ];
 
 export const LIMITS = Object.freeze({
@@ -32,6 +49,3 @@ export const LIMITS = Object.freeze({
   sessionsPerDay: 200,
   messageLength: 2000,
 });
-
-// Campos públicos mínimos de un usuario cuando aparece dentro de otro recurso.
-export const USER_SUMMARY_FIELDS = 'name handle avatar.updatedAt';

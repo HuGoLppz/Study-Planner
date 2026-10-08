@@ -1,23 +1,37 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { createContext, useCallback, useContext, useEffect, useMemo } from 'react';
-import { qk } from '../hooks/queryKeys.js';
-import { authApi } from '../services/api.js';
-import { onUnauthorized } from '../services/http.js';
-import { disconnectSocket } from '../services/socket.js';
-import { usePomodoroStore } from '../store/pomodoroStore.js';
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+} from "react";
+import { qk } from "../hooks/queryKeys.js";
+import { authApi } from "../services/api.js";
+import { onUnauthorized } from "../services/http.js";
+import { disconnectSocket } from "../services/socket.js";
+import { usePomodoroStore } from "../store/pomodoroStore.js";
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const queryClient = useQueryClient();
-  const { data: user, isPending, isError, refetch } = useQuery({
+  const {
+    data: user,
+    isPending,
+    isError,
+    refetch,
+  } = useQuery({
     queryKey: qk.me,
     queryFn: authApi.me,
     staleTime: 5 * 60 * 1000,
     retry: 1,
   });
 
-  const setUser = useCallback((next) => queryClient.setQueryData(qk.me, next), [queryClient]);
+  const setUser = useCallback(
+    (next) => queryClient.setQueryData(qk.me, next),
+    [queryClient],
+  );
 
   const endSession = useCallback(() => {
     disconnectSocket();
@@ -37,7 +51,7 @@ export function AuthProvider({ children }) {
   const value = useMemo(
     () => ({
       user: user ?? null,
-      status: isPending ? 'loading' : user ? 'authenticated' : 'anonymous',
+      status: isPending ? "loading" : user ? "authenticated" : "anonymous",
       isError,
       retry: refetch,
       setUser,
@@ -59,6 +73,6 @@ export function AuthProvider({ children }) {
 
 export function useAuth() {
   const context = useContext(AuthContext);
-  if (!context) throw new Error('useAuth debe usarse dentro de <AuthProvider>');
+  if (!context) throw new Error("useAuth debe usarse dentro de <AuthProvider>");
   return context;
 }

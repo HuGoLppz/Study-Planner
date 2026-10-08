@@ -1,4 +1,4 @@
-import { create } from 'zustand';
+import { create } from "zustand";
 
 // Confirmaciones como promesa: `if (await confirm({...})) borrar()`.
 export const useConfirmStore = create((set, get) => ({

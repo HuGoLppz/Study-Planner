@@ -1,7 +1,7 @@
 # STUDY-PLANNER — Arquitectura y decisiones de diseño
 
 Este documento recoge el análisis previo a la implementación: arquitectura, estructura de carpetas,
-modelo documental de MongoDB, índices, API, navegación y sistema visual.
+modelo relacional (PostgreSQL), índices, API, navegación, sistema visual y escalabilidad.
 
 ---
 
@@ -18,11 +18,11 @@ STUDY-PLANNER resuelve dos trabajos distintos para un estudiante universitario:
 Consecuencias técnicas:
 
 - El dashboard debe resolverse con **una sola petición** que agregue todo lo necesario.
-- Las estadísticas (medias, evolución, progreso) se calculan con el **aggregation pipeline** de
-  MongoDB, no en el cliente ni con datos precalculados que puedan quedar desfasados.
+- Las estadísticas (medias, evolución, progreso) se calculan con **consultas SQL** (`GROUP BY`,
+  funciones de ventana), no en el cliente ni con datos precalculados que puedan quedar desfasados.
 - El chat necesita **Socket.IO**; las escrituras siguen pasando por la API REST (validación y
   permisos en un único punto) y el socket solo difunde los cambios.
-- Los archivos se guardan en disco (fuera de cualquier carpeta pública) y en MongoDB solo los metadatos.
+- Los archivos se guardan en disco (fuera de cualquier carpeta pública) y en la base de datos solo los metadatos.
 - Todos los estados derivados (por ejemplo, "atrasada") se calculan a partir de datos reales; nunca se
   almacenan, para que no puedan contradecirse.
 
@@ -33,11 +33,11 @@ Consecuencias técnicas:
 │  client/  React + Vite   │ ───────────────────────────────────────▶ │  server/  Node + Express │
 │  React Router            │                                          │  routes → controllers    │
 │  TanStack Query (cache)  │ ◀─────────── Socket.IO (eventos) ─────── │  → services → models     │
-│  Zustand (estado local)  │                                          │  Mongoose                │
+│  Zustand (estado local)  │                                          │  pg (PostgreSQL)         │
 └──────────────────────────┘                                          └────────────┬─────────────┘
                                                                                    │
                                                           ┌────────────────────────┴───────┐
-                                                          │ MongoDB (local o Atlas)        │
+                                                          │ PostgreSQL · Redis (opcional)  │
                                                           │ uploads/ (archivos en disco)   │
                                                           └────────────────────────────────┘
 ```
@@ -63,18 +63,20 @@ Study-Planner/
 │   ├── .env.example
 │   ├── uploads/              archivos subidos (ignorado por git)
 │   └── src/
-│       ├── server.js         arranque: BD, HTTP, Socket.IO, tareas programadas
+│       ├── server.js         arranque: un proceso o cluster según WORKERS
+│       ├── worker.js         un proceso de la API: BD, HTTP, Socket.IO, tareas programadas
+│       ├── cluster/          proceso principal, papel de cada proceso, bus de mensajes
 │       ├── app.js            Express: seguridad, parsers, rutas, errores
 │       ├── config/           variables de entorno validadas y constantes de dominio
-│       ├── database/         conexión a MongoDB
-│       ├── models/           esquemas Mongoose
+│       ├── database/         conexión a PostgreSQL, schema.sql, migraciones, importador de SQLite
+│       ├── models/           columnas y conversión de fila a objeto
 │       ├── auth/             contraseñas, tokens y cookies
 │       ├── middleware/       auth, validación, acceso a salas, errores, límites
 │       ├── validators/       esquemas zod por recurso
 │       ├── routes/           un router por recurso
 │       ├── controllers/      adaptadores HTTP
 │       ├── services/         lógica de negocio
-│       ├── serializers/      qué se expone de cada documento
+│       ├── serializers/      qué se expone de cada usuario
 │       ├── uploads/          configuración de multer y almacenamiento
 │       ├── sockets/          servidor Socket.IO y emisores
 │       ├── jobs/             recordatorios de entregas
@@ -85,7 +87,7 @@ Study-Planner/
     └── src/
         ├── main.jsx, App.jsx, router.jsx
         ├── assets/           logotipo e ilustraciones SVG
-        ├── styles/           tokens, base y utilidades
+        ├── styles/           tokens.css (valores de diseño) y app.css (todos los estilos)
         ├── layouts/          AppLayout (rail, barra inferior), AuthLayout
         ├── pages/            una página por ruta
         ├── components/       ui/ (primitivas) y componentes por dominio
@@ -96,166 +98,141 @@ Study-Planner/
         └── utils/            fechas, formato, reglas de tareas, constantes
 ```
 
-## 4. Modelo documental de MongoDB
+## 4. Modelo relacional (PostgreSQL)
 
-Se parte de las 12 entidades conceptuales y se decide para cada una si se embebe, se referencia o se
-agrupa, según cómo se lee y se escribe en la aplicación. Resultado: **8 colecciones**.
+El esquema completo, con comentarios, está en
+[`server/src/database/schema.sql`](../server/src/database/schema.sql). Se aplica al arrancar el
+servidor y es idempotente (`CREATE … IF NOT EXISTS`, `CREATE OR REPLACE` para funciones y triggers).
+Se accede con `pg` a través de `database/db.js`.
 
-| Entidad conceptual        | Decisión                                       | Dónde                         |
-|---------------------------|------------------------------------------------|-------------------------------|
-| Usuarios                  | Colección                                      | `users`                       |
-| Asignaturas               | **Embebidas** en el usuario                    | `users.subjects[]`            |
-| Tareas                    | Colección, referencia al dueño                 | `tasks`                       |
-| Calificaciones            | **Embebidas** en la tarea (1:1)                | `tasks.grade`                 |
-| Relaciones de amistad     | Colección de aristas (1 documento por pareja)  | `friendships`                 |
-| Salas                     | Colección                                      | `rooms`                       |
-| Participantes de salas    | **Embebidos** con su rol                       | `rooms.members[]`             |
-| Invitaciones a salas      | **Embebidas**                                  | `rooms.invitations[]`         |
-| Tareas colaborativas      | **Embebidas**                                  | `rooms.tasks[]`               |
-| Mensajes                  | Colección, referencia a sala y autor           | `messages`                    |
-| Archivos                  | Colección de metadatos; binario en disco       | `roomfiles`                   |
-| Notificaciones            | Colección con instantánea de datos             | `notifications`               |
-| Sesiones Pomodoro         | **Patrón bucket**: un documento por usuario y día | `pomodorodays`             |
+Hasta la fase 3 la base era SQLite. Se cambió a PostgreSQL para poder repartir la API entre varias
+máquinas: un archivo SQLite solo puede abrirlo un servidor. Las tablas, columnas y reglas son las
+mismas; `npm run db:import-sqlite` pasa una base antigua con los mismos identificadores.
 
-### 4.1 `users`
+### 4.1 Tablas
 
-```js
-{
-  _id, name, email, passwordHash /* select:false */, tokenVersion /* select:false */,
-  handle,                 // identificador público único: "hugo.lopez"
-  searchTokens: [String], // nombre normalizado y troceado para búsqueda por prefijo
-  studies, course, bio,
-  avatar: { fileName, mimeType, updatedAt },   // WebP 256×256 optimizado en el servidor
-  privacy: { profileVisibility: 'public'|'friends'|'private', searchable: Boolean, showGrades: Boolean },
-  preferences: {
-    theme: 'system'|'light'|'dark',
-    pomodoro: { focusMinutes, breakMinutes, longBreakMinutes, cyclesBeforeLongBreak }
-  },
-  subjects: [{ _id, name, description, color, createdAt, updatedAt }],
-  createdAt, updatedAt
-}
+| Tabla                 | Clave primaria                      | Qué guarda                                                        |
+|-----------------------|-------------------------------------|-------------------------------------------------------------------|
+| `Usuarios`            | `usuario_id` (9 caracteres)         | cuenta, perfil, foto, privacidad y tema                           |
+| `Ajustes_Pomodoro`    | `usuario_id` (1:1)                  | minutos de trabajo y descanso, ciclos hasta el descanso largo     |
+| `Amigos`              | `amistad_id`                        | una fila por pareja: solicitud (`pending`) o amistad (`accepted`) |
+| `Asignaturas`         | `asignatura_id`                     | asignaturas de cada usuario con su color                          |
+| `Tareas`              | `tarea_id`                          | tareas personales                                                 |
+| `Calificaciones`      | `calificacion_id` (`tarea_id` único)| nota de 0 a 10 de una tarea completada (1:1)                      |
+| `Salas`               | `sala_id` (9 caracteres)            | sala de estudio; copia del nombre y color de su asignatura        |
+| `Participantes_Salas` | (`sala_id`, `usuario_id`)           | quién está en cada sala y con qué rol (`admin`, `member`)         |
+| `Invitaciones_Salas`  | (`sala_id`, `usuario_id`)           | invitaciones pendientes; al aceptarla pasa a participantes        |
+| `Tareas_Sala`         | `tarea_sala_id`                     | tareas compartidas con responsable                                |
+| `Mensajes_Salas`      | `mensaje_id`                        | chat de cada sala                                                 |
+| `Archivos_Salas`      | `archivo_id`                        | metadatos de los archivos (el binario va en disco)                |
+| `Notificaciones`      | `notificacion_id`                   | avisos con una instantánea JSON de nombres y títulos              |
+| `Pomodoro`            | `pomodoro_id`                       | una fila por sesión de trabajo o descanso                         |
+
+```
+Usuarios ─┬─< Asignaturas ─< Tareas ─── Calificaciones (0..1)
+          ├─< Tareas (usuario_id)
+          ├── Ajustes_Pomodoro (1:1)
+          ├─< Pomodoro >── Asignaturas (opcional)
+          ├─< Amigos >── Usuarios            usuario_id envía, amigo_id recibe
+          ├─< Notificaciones
+          └─< Participantes_Salas >── Salas ─┬─< Invitaciones_Salas
+                                             ├─< Tareas_Sala
+                                             ├─< Mensajes_Salas
+                                             └─< Archivos_Salas
 ```
 
-**Por qué las asignaturas van embebidas**: son pocas (límite de 40), pertenecen a un único usuario,
-nunca se consultan sin su dueño y se necesitan en casi todas las pantallas. Llegan con `GET /auth/me`
-y el cliente las tiene siempre en memoria sin peticiones extra. Las tareas guardan solo el `_id` de la
-asignatura; al borrar una asignatura se hace un `updateMany` que deja esas tareas sin asignatura.
+### 4.2 Decisiones
 
-**Por qué `searchTokens`**: buscar "lop" debe encontrar "Hugo López". Un índice multikey sobre los
-tokens normalizados (sin tildes, en minúsculas) permite consultas `^lop` que usan el índice, sin
-depender de un índice de texto que no hace coincidencias por prefijo.
+- **Identificadores**: usuarios y salas usan un código aleatorio de 9 caracteres (`utils/ids.js`,
+  sin `0/O` ni `1/I`) porque aparecen en URLs y no deben ser consecutivos ni revelar cuántos hay. El
+  resto de tablas usa `integer GENERATED ALWAYS AS IDENTITY`. La API devuelve todos los ids como texto
+  en `_id`.
+- **Asignaturas 1:N y no N:M**: cada estudiante crea las suyas con su propio color y descripción, y
+  nadie más las ve; una tabla intermedia `Usuarios_Asignaturas` obligaría a compartir el color. La tarea
+  guarda `asignatura_id` (clave foránea) en lugar del nombre: renombrar una asignatura no deja tareas
+  huérfanas y `ON DELETE SET NULL` deja sus tareas "sin asignatura" al borrarla.
+- **Calificaciones**: tabla aparte 1:1 (`tarea_id UNIQUE`). Ni el usuario ni la asignatura se repiten
+  en ella: se obtienen de la tarea.
+- **Amigos**: una sola fila por pareja, con estado. El índice único sobre
+  `(LEAST(usuario_id, amigo_id), GREATEST(usuario_id, amigo_id))` (con `COLLATE "C"`, para ordenar igual
+  que JavaScript) impide dos filas aunque cada uno envíe una solicitud al otro a la vez.
+- **Salas**: participantes, invitaciones y tareas en tablas propias. La asignatura de la sala es una
+  copia (nombre y color) porque la original es privada de su dueño.
+- **Contadores**: mensajes, archivos y tareas abiertas de cada sala se guardan en `Salas` y los
+  mantienen triggers (`tr_contador_*`) en cualquier escritura, también en los borrados en cascada.
+  Antes se calculaban con `COUNT`, que recorría todos los mensajes de la sala en cada listado y en
+  cada cambio difundido.
+- **Pomodoro**: una fila por sesión con el día local del usuario (`dia`); los totales del día y el
+  historial salen de `SUM … GROUP BY dia`.
+- **Tipos**: fechas `timestamptz` (la API las recibe y devuelve en ISO 8601 UTC), booleanos de verdad,
+  notas `numeric(4,2)` y los datos de los avisos en `jsonb`. "Atrasada" no se guarda:
+  `estado <> 'completed' AND fecha_entrega < ahora`.
+- **Búsquedas**: `normalizar()` (minúsculas y sin tildes, con la extensión `unaccent`) para buscar
+  tareas, e índices de trigramas (`pg_trgm`) para buscar personas por cualquier trozo de su nombre.
+- **Valores cerrados** (tipos de tarea, urgencias, estados, colores, roles, tipos de aviso) con `CHECK`
+  en la tabla. Son los mismos que `config/constants.js`.
 
-### 4.2 `tasks`
+### 4.3 Integridad en la base de datos
 
-```js
-{
-  _id, owner: ObjectId(User), title, description,
-  subject: ObjectId | null,   // _id de users.subjects
-  type: 'exam'|'assignment'|'project'|'reading'|'practice'|'presentation'|'other',
-  priority: 'low'|'medium'|'high',
-  status: 'pending'|'in_progress'|'completed',
-  dueDate, completedAt,
-  grade: { score: 0..10, gradedAt },   // solo si está completada
-  reminderSentAt,
-  createdAt, updatedAt                 // createdAt = fecha de creación
-}
-```
+Además de las claves foráneas y los `CHECK`, el esquema tiene triggers (funciones PL/pgSQL) para las
+reglas que cruzan tablas. Sus errores usan el SQLSTATE `P0001` y la API los devuelve como 409:
 
-Las tareas no se embeben en el usuario porque crecen sin límite, se escriben de forma independiente y
-se consultan por rangos de fechas con filtros. **La calificación sí se embebe**: es 1:1 con la tarea,
-no existe sin ella y así las estadísticas son un único pipeline sobre `tasks`.
+| Trigger                               | Regla                                                  |
+|---------------------------------------|--------------------------------------------------------|
+| `tr_tareas_asignatura_propia`         | la asignatura de una tarea es del mismo usuario        |
+| `tr_calificaciones_solo_completadas`  | solo se califican tareas completadas                   |
+| `tr_tareas_reabrir_borra_nota`        | reabrir una tarea borra su nota                        |
+| `tr_invitaciones_no_participantes`    | no se invita a quien ya está en la sala                |
+| `tr_participantes_salida_desasigna`   | quien sale de una sala deja sus tareas sin asignar     |
+| `tr_contador_*`                       | mantienen `Salas.mensajes`, `archivos` y `tareas_abiertas` |
 
-"Atrasada" no se guarda: es `status != completed && dueDate < ahora`.
+Las operaciones que tocan varias filas (registrar un usuario con sus ajustes, aceptar una invitación,
+comprobar un límite y añadir) van dentro de una transacción (`transaction()` de `database/db.js`).
+PostgreSQL ejecuta transacciones en paralelo, así que las que comprueban una regla y después escriben
+empiezan bloqueando la fila que las ordena (`lockRow('sala', id)` o `lockRow('usuario', id)`, un
+`SELECT … FOR UPDATE`): dos peticiones a la vez sobre la misma sala no pueden saltarse el máximo de
+participantes ni dejarla sin administradores. Borrar una sala o un usuario arrastra todo lo que
+depende de ellos con `ON DELETE CASCADE`.
 
-### 4.3 `friendships`
+### 4.4 Versiones del esquema
 
-```js
-{ _id, pairKey: "idA:idB" /* ordenados, único */, users: [idA, idB],
-  requester, recipient, status: 'pending'|'accepted', acceptedAt, createdAt }
-```
+`schema.sql` describe siempre el esquema completo y actual: una base nueva se crea con él y queda en
+la última versión (tabla `Version_Esquema`). Una base existente aplica antes las migraciones
+pendientes de `database/migrations.js` (columnas nuevas, datos que rellenar) y después `schema.sql`,
+que solo crea lo que falte. Todo va en una transacción con `pg_advisory_xact_lock`: si varias
+máquinas arrancan a la vez, una aplica el esquema y las demás esperan.
 
-La amistad es simétrica y tiene ciclo de vida (pendiente → aceptada). Guardarla en un único documento
-hace que **cada transición sea una escritura atómica sobre un solo documento**, sin transacciones
-multi-documento (no disponibles en un MongoDB local sin réplica). `pairKey` único impide duplicados y
-condiciones de carrera cuando dos personas se envían solicitud a la vez.
-
-### 4.4 `rooms`
-
-```js
-{
-  _id, name, description, scheduledAt,
-  subject: { name, color },             // instantánea de la asignatura del creador
-  createdBy,
-  members:     [{ user, role: 'admin'|'member', joinedAt }],     // máx. 50
-  invitations: [{ user, invitedBy, createdAt }],
-  tasks:       [{ _id, title, description, dueDate, assignee, status, createdBy, completedAt, createdAt, updatedAt }], // máx. 200
-  stats: { messages, files },           // contadores mantenidos con $inc
-  lastActivityAt, createdAt, updatedAt
-}
-```
-
-- **Participantes y administradores** son el mismo array con un rol: se leen siempre con la sala, están
-  acotados y la comprobación de permisos es una búsqueda en memoria.
-- **Aceptar una invitación** es un único `findOneAndUpdate` que hace `$pull` de `invitations` y `$push`
-  a `members`: la transición es atómica.
-- **Tareas colaborativas embebidas**: solo existen dentro de su sala, se muestran siempre juntas y están
-  acotadas. Se actualizan con el operador posicional (`tasks.$`) y `arrayFilters`, nunca reescribiendo
-  el array completo.
-- **La asignatura es una instantánea** porque las asignaturas son privadas de cada usuario: los demás
-  participantes no la tienen.
-
-### 4.5 `messages` y `roomfiles`
-
-Crecen sin límite y se paginan, así que van en colecciones propias con referencia a la sala. El autor
-se referencia y se resuelve con `populate` (una única consulta `$in` por página), para que un cambio de
-nombre o foto se vea en todo el historial. Los binarios se guardan en `uploads/rooms/<roomId>/` con
-nombre aleatorio; `roomfiles` guarda nombre original, tipo, tamaño, autor y fecha.
-
-### 4.6 `notifications`
-
-```js
-{ _id, recipient, type, actor, room, task, data: { actorName, roomName, taskTitle, … },
-  read, readAt, createdAt }
-```
-
-Una notificación describe un hecho pasado, así que guarda una **instantánea** (`data`) para poder
-pintarse sin joins aunque el nombre de la sala cambie después. Un índice TTL las elimina a los 180 días.
-
-### 4.7 `pomodorodays` — patrón bucket
-
-```js
-{ _id, user, day: 'YYYY-MM-DD',
-  sessions: [{ phase: 'focus'|'break', plannedSeconds, actualSeconds, completed, startedAt, endedAt, subject }],
-  totals: { focusSeconds, breakSeconds, completedFocus } }
-```
-
-Las sesiones son datos de serie temporal pequeños y numerosos. Agruparlas por día hace que "hoy" sea un
-documento y "últimos 7 días" sean 7, y cada sesión nueva es un `upsert` con `$push` + `$inc` atómico.
+La versión 0 es el esquema de PostgreSQL de la fase 4. Las versiones de SQLite (contadores de salas,
+índice de búsqueda) ya están incluidas en él.
 
 ## 5. Índices
 
-| Colección        | Índice                                             | Para qué                                   |
-|------------------|----------------------------------------------------|--------------------------------------------|
-| users            | `email` único                                      | login, registro                            |
-| users            | `handle` único                                     | perfil por identificador, búsqueda `^`     |
-| users            | `searchTokens` (multikey)                          | búsqueda por nombre con prefijo            |
-| tasks            | `{ owner, dueDate }`                               | calendario, próximas entregas              |
-| tasks            | `{ owner, status, dueDate }`                       | pendientes / atrasadas / completadas (ESR) |
-| tasks            | `{ owner, 'grade.gradedAt' }` parcial (con nota)    | listado de calificaciones                  |
-| tasks            | `{ reminderSentAt, dueDate }`                      | job de recordatorios                       |
-| friendships      | `pairKey` único                                    | estado entre dos usuarios                  |
-| friendships      | `{ users, status }`                                | lista de amigos                            |
-| friendships      | `{ recipient, status }`                            | solicitudes recibidas                      |
-| rooms            | `{ 'members.user', lastActivityAt: -1 }`           | "mis salas" ordenadas por actividad        |
-| rooms            | `invitations.user`                                 | invitaciones pendientes                    |
-| rooms            | `{ 'tasks.assignee', 'tasks.dueDate' }`            | tareas de sala asignadas (agenda)          |
-| rooms            | `scheduledAt`                                      | próximas sesiones                          |
-| messages         | `{ room, _id: -1 }`                                | historial paginado por cursor              |
-| roomfiles        | `{ room, createdAt: -1 }`                          | listado de archivos                        |
-| notifications    | `{ recipient, _id: -1 }`                           | bandeja paginada                           |
-| notifications    | `{ recipient, read }`                              | contador de no leídas                      |
-| notifications    | `createdAt` TTL 180 días                           | limpieza automática                        |
-| pomodorodays     | `{ user, day }` único                              | bucket del día, historial                  |
+Además de las claves primarias y de los `UNIQUE` (`Usuarios.email`, `Usuarios.identificador`,
+`Asignaturas(usuario_id, nombre_normalizado)`, `Calificaciones.tarea_id`):
+
+| Índice                                  | Columnas                                               | Para qué                                    |
+|-----------------------------------------|--------------------------------------------------------|---------------------------------------------|
+| `ux_amigos_pareja` (único)              | `LEAST(usuario_id, amigo_id)`, `GREATEST(…)` (`COLLATE "C"`) | relación entre dos usuarios           |
+| `ix_amigos_usuario`                     | `usuario_id, estado`                                   | solicitudes enviadas, lista de amigos       |
+| `ix_amigos_amigo`                       | `amigo_id, estado`                                     | solicitudes recibidas, lista de amigos      |
+| `ix_tareas_usuario_entrega`             | `usuario_id, fecha_entrega`                            | calendario, horizonte                       |
+| `ix_tareas_usuario_estado`              | `usuario_id, estado, fecha_entrega`                    | pendientes, atrasadas, completadas          |
+| `ix_tareas_asignatura`                  | `asignatura_id`                                        | filtro por asignatura, `ON DELETE SET NULL` |
+| `ix_tareas_recordatorio` (parcial)      | `fecha_entrega`, sin aviso enviado ni completadas      | job de recordatorios                        |
+| `ix_salas_sesion` (parcial)             | `fecha_sesion`                                         | próximas sesiones (agenda)                  |
+| `ix_participantes_usuario`              | `usuario_id`                                           | "mis salas"                                 |
+| `ix_invitaciones_usuario`               | `usuario_id`                                           | invitaciones pendientes                     |
+| `ix_tareas_sala_sala`                   | `sala_id, tarea_sala_id`                               | tareas de una sala                          |
+| `ix_tareas_sala_asignada`               | `usuario_id, fecha_entrega`                            | tareas asignadas (agenda)                   |
+| `ix_mensajes_sala`                      | `sala_id, mensaje_id DESC`                             | historial paginado por cursor               |
+| `ix_archivos_sala`                      | `sala_id, fecha_subida DESC`                           | listado de archivos                         |
+| `ix_notificaciones_usuario`             | `usuario_id, notificacion_id DESC`                     | bandeja paginada                            |
+| `ix_notificaciones_no_leidas` (parcial) | `usuario_id` con `NOT leida`                           | contador de no leídas                       |
+| `ix_notificaciones_sala` (parcial)      | `sala_id`                                              | borrado en cascada de una sala              |
+| `ix_notificaciones_fecha`               | `fecha_envio`                                          | limpieza de avisos de más de 180 días       |
+| `ix_pomodoro_usuario_dia`               | `usuario_id, dia`                                      | sesiones de hoy, historial                  |
+| `ix_usuarios_nombre_trgm` (GIN, `pg_trgm`) | `' ' \|\| nombre_busqueda`                        | buscar personas por principio de palabra    |
+| `ix_usuarios_identificador_trgm` (GIN, `pg_trgm`) | `identificador`                              | buscar por identificador                    |
 
 ## 6. API REST
 
@@ -272,7 +249,7 @@ Errores: `{ error: { message, code, fields? } }` con 400, 401, 403, 404, 409, 41
 |                 | `PATCH /users/me` · `/me/privacy` · `/me/preferences`  | datos, privacidad, preferencias                |
 |                 | `PUT /users/me/avatar` · `DELETE /users/me/avatar`     | foto (multipart)                               |
 |                 | `GET /users/:userId/avatar`                            | foto (requiere sesión)                         |
-| Asignaturas     | `GET/POST /subjects` · `PATCH/DELETE /subjects/:id`    | CRUD sobre `users.subjects`                    |
+| Asignaturas     | `GET/POST /subjects` · `PATCH/DELETE /subjects/:id`    | CRUD de asignaturas                            |
 | Tareas          | `GET /tasks` (filtros, búsqueda, paginación)           |                                                |
 |                 | `GET /tasks/summary`                                   | contadores por estado                          |
 |                 | `POST /tasks` · `GET/PATCH/DELETE /tasks/:id`          |                                                |
@@ -294,10 +271,14 @@ Errores: `{ error: { message, code, fields? } }` con 400, 401, 403, 404, 409, 41
 | Pomodoro        | `GET/PUT /pomodoro/settings` · `POST /pomodoro/sessions` |                                              |
 |                 | `GET /pomodoro/today?day=` · `GET /pomodoro/history`   |                                                |
 | Dashboard       | `GET /dashboard`                                       | todo lo de la pantalla Hoy en una petición     |
+| Estado          | `GET /health`                                          | servidor, base de datos y bucle de eventos (sin sesión) |
 
 **Eventos Socket.IO** (solo difusión; las escrituras van por REST): `room:join`, `room:leave`,
 `room:typing` (cliente → servidor); `message:new`, `message:updated`, `message:deleted`,
-`room:updated`, `room:files`, `notification:new` (servidor → cliente).
+`room:patch`, `room:files`, `room:removed`, `room:deleted`, `notification:new` (servidor → cliente).
+Socket.IO usa solo WebSocket (sin *long-polling*), así cada conexión vive entera en un proceso.
+`room:patch` lleva solo lo que ha cambiado en la sala (sus datos, participantes, invitaciones o una
+tarea); quien hace el cambio recibe la sala completa en la respuesta REST.
 
 ## 7. Navegación
 
@@ -328,17 +309,17 @@ Escritorio y portátil (≥ 1100px)          Tablet (768–1099px)        Móvil
 
 ## 8. Sistema visual
 
-**Tema**: los apuntes de un estudiante. Tinta de bolígrafo azul sobre papel frío y marcadores
+**Tema**: los apuntes de un estudiante. Tinta negra sobre papel frío (y papel negro en modo oscuro) y marcadores
 fluorescentes para lo que importa ahora. El color de cada asignatura es un fluorescente, como los
 subrayados de unos apuntes.
 
 | Token          | Claro     | Oscuro    | Uso                                              |
 |----------------|-----------|-----------|--------------------------------------------------|
-| `--canvas`     | `#E9ECF3` | `#0C0F27` | fondo bajo la hoja y el rail                     |
-| `--sheet`      | `#FFFFFF` | `#161A3A` | hoja de contenido                                |
-| `--ink`        | `#1B2463` | `#E7E8F4` | texto principal, botones primarios               |
-| `--ink-2`      | `#525A8A` | `#A6AACB` | texto secundario                                 |
-| `--rule`       | `#DADEEA` | `#2B3163` | separadores y bordes de campos                   |
+| `--canvas`     | `#E9ECF3` | `#0A0A0B` | fondo bajo la hoja y el rail                     |
+| `--sheet`      | `#FFFFFF` | `#141416` | hoja de contenido                                |
+| `--ink`        | `#141416` | `#EDEDEF` | texto principal, botones primarios               |
+| `--ink-2`      | `#55555C` | `#A5A5AC` | texto secundario                                 |
+| `--rule`       | `#DADEEA` | `#2A2A2F` | separadores y bordes de campos                   |
 | `--marker`     | `#F7E641` | `#F7E641` | subrayado de estado: hoy, siguiente, selección   |
 | `--red-pen`    | `#C8243A` | `#FF6B7A` | atrasadas y acciones destructivas                |
 
@@ -361,5 +342,86 @@ Recursive Linear. Escala: 12 · 14 · 16 · 18 · 21 · 24 · 36 · 48 · 72.
 **Revisión frente a lo genérico**: la primera idea era un dashboard con fichas de KPI (media, completadas,
 pendientes). Se sustituyó por el horizonte de 14 días y por barras de media por asignatura con la media
 general como línea de referencia, que muestran comparación y no solo un número. También se descartó el
-azul primario típico de apps educativas: la tinta es un azul bolígrafo muy oscuro usado como "negro" del
-sistema, no como color de acento.
+azul primario típico de apps educativas: la tinta es negra y el azul queda solo como acento de las
+gráficas y del foco.
+
+## 9. Rendimiento y escalabilidad
+
+Cada proceso de Node tiene un solo hilo: el trabajo de CPU de cada petición tiene que ser pequeño y lo
+caro sale del hilo principal. Con PostgreSQL, además, cada consulta es un viaje de red: lo que cuenta
+es cuántas consultas hace cada petición y que las independientes vayan en paralelo (`Promise.all`).
+
+**Lo que ya está hecho**
+
+| Medida | Dónde |
+|--------|-------|
+| Grupo de conexiones a PostgreSQL abierto al arrancar, sentencias preparadas y consultas independientes en paralelo | `database/db.js`, servicios |
+| bcrypt nativo: el hash va al pool de hilos de libuv, ampliado según los núcleos | `auth/password.js`, `config/threadpool.js` |
+| Límites por usuario con sesión; por IP solo sin sesión; login limitado por cuenta y por IP | `middleware/security.js` |
+| Compresión (brotli calidad 4) y caché de un año para los assets con hash | `app.js` |
+| Contadores de las salas mantenidos por triggers | `schema.sql` |
+| Formateadores de `Intl` y clave del JWT creados una sola vez | `grade.service.js`, `auth/tokens.js` |
+| Estadísticas académicas: semanas calculadas una vez por consulta y caché de 30 s por usuario que invalidan sus escrituras | `grade.service.js`, `academicCache.js` |
+| Usuario y asignaturas en una sola consulta por petición (`json_agg`) | `models/user.model.js` |
+| Dashboard: solo las 4 salas y 8 amigos que muestra, más los totales, y todo en paralelo | `dashboard.service.js` |
+| Cambios de sala difundidos como parches pequeños (`room:patch`), sin recargas en cadena en los clientes | `room.service.js`, `utils/rooms.js` |
+| Búsqueda de personas con índices de trigramas | `schema.sql`, `user.service.js` |
+| Cliente: un minuto de frescura de datos, sondeo de avisos cada 15 min solo como respaldo, páginas de 200 tareas | `App.jsx`, hooks |
+| Registro de consultas lentas, monitor del bucle de eventos y `/api/health` | `database/db.js`, `utils/eventLoop.js` |
+| Datos y script de prueba de carga (también contra varios servidores) | `seed/load-seed.js`, `scripts/load-test.mjs` |
+| Varios procesos (cluster) y varias máquinas (Redis + S3), ver abajo | `server.js`, `worker.js`, `cluster/`, `infra/`, `uploads/` |
+
+Resultados medidos en el README (sección "Pruebas de carga").
+
+**Varios procesos en una máquina (`WORKERS`)**
+
+```
+                  ┌──────────────────────────── proceso principal (cluster/primary.js) ──┐
+ conexiones ────▶ │ acepta y reparte por turnos · sin Redis: límites y avisos entre ellos │
+                  └───────┬───────────────────────┬───────────────────────┬──────────────┘
+                          ▼                       ▼                       ▼
+                     proceso 0               proceso 1      …        proceso N-1
+                     (recordatorios)
+                     Express + Socket.IO + su grupo de conexiones a PostgreSQL
+```
+
+- **Reparto**: el `cluster` de Node en modo rotatorio (`SCHED_RR`, también en Windows). El principal
+  solo acepta cada conexión y la entrega; después el proceso la lee y responde directamente.
+- **Base de datos**: cada proceso abre su grupo de conexiones (`DATABASE_POOL_SIZE`). El principal
+  aplica el esquema antes de arrancar los procesos.
+- **Socket.IO**: solo WebSocket, así que no necesita sesiones *sticky*.
+- **Fallos**: el principal reinicia un proceso caído con el mismo índice (esperando más si cae en
+  bucle). Si el principal desaparece, los procesos se cierran en vez de quedarse huérfanos.
+
+**Varias máquinas (`REDIS_URL` y `S3_BUCKET`)**
+
+```
+                         balanceador (WebSocket, sin sesiones sticky)
+              ┌──────────────────┬───────────────────┬──────────────────┐
+              ▼                  ▼                   ▼                  ▼
+          servidor A         servidor B          servidor C          …      (cada uno con WORKERS)
+              └──────────────────┴─────────┬─────────┴──────────────────┘
+                     PostgreSQL (datos) · Redis (coordinación) · S3 (archivos)
+```
+
+Cada pieza que en una máquina coordinaba el proceso principal pasa a Redis:
+
+| Qué | Una máquina | Varias máquinas |
+|-----|-------------|-----------------|
+| Eventos de Socket.IO entre procesos | `@socket.io/cluster-adapter` (IPC) | `@socket.io/redis-adapter` |
+| Contadores de los límites de peticiones | `@express-rate-limit/cluster-memory-store` | `rate-limit-redis` |
+| Invalidación de cachés (`cluster/bus.js`) | IPC a través del principal | canal de Redis |
+| Fotos y archivos (`uploads/objectStore.js`) | disco (`UPLOAD_DIR`) | S3: subida desde la API, descarga con enlace firmado de 60 s |
+| Recordatorios | proceso 0 | proceso 0 de cada máquina; cada tarea se reclama con `FOR UPDATE SKIP LOCKED` |
+| Esquema al arrancar | lo aplica el principal | `pg_advisory_xact_lock`: lo aplica el primero en llegar |
+
+Probado con dos servidores independientes en la misma máquina: sesiones, chat, parches de sala,
+límites, cachés, archivos, fotos y recordatorios funcionan cruzados entre ellos (ver el README).
+
+**Siguientes pasos, si hiciera falta más**
+
+1. Menos viajes a PostgreSQL por petición: guardar en memoria el usuario de la sesión unos segundos
+   (invalidándolo por el bus al cambiarlo), que hoy es una consulta en cada petición.
+2. PgBouncer delante de PostgreSQL cuando la suma de conexiones de todos los procesos se acerque a
+   `max_connections`, y réplicas de lectura para las consultas pesadas (estadísticas, búsquedas).
+3. CDN delante del frontend compilado y de las descargas de S3.

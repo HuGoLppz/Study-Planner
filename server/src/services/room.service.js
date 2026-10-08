@@ -1,338 +1,572 @@
-import { LIMITS, USER_SUMMARY_FIELDS } from '../config/constants.js';
-import { Friendship } from '../models/Friendship.js';
-import { Message } from '../models/Message.js';
-import { Notification } from '../models/Notification.js';
-import { Room } from '../models/Room.js';
-import { RoomFile } from '../models/RoomFile.js';
-import { serializeUserSummary } from '../serializers/user.serializer.js';
-import { closeRoomChannel, detachUserFromRoom, emitToRoom, emitToUser } from '../sockets/emitter.js';
-import { paths, removeDirectory } from '../uploads/storage.js';
-import { ApiError } from '../utils/ApiError.js';
-import { sameId } from '../utils/ids.js';
-import { notify, resolveActionable } from './notification.service.js';
+import { LIMITS } from "../config/constants.js";
+import { iso, lockRow, nowIso, sql, transaction } from "../database/db.js";
+import { subjectOfRoom, toRoomTask } from "../models/room.model.js";
+import { summaryColumns, summaryFrom } from "../models/user.model.js";
+import {
+  closeRoomChannel,
+  detachUserFromRoom,
+  emitToRoom,
+  emitToUser,
+} from "../sockets/emitter.js";
+import { removeRoomFiles } from "../uploads/storage.js";
+import { ApiError } from "../utils/ApiError.js";
+import { generatePublicId, sameId } from "../utils/ids.js";
+import { areFriends } from "./friend.service.js";
+import {
+  notify,
+  removeRoomInvitationNotice,
+  resolveActionable,
+} from "./notification.service.js";
 
-// Condición atómica: la sala conserva al menos dos administradores antes de quitar uno.
-const HAS_SPARE_ADMIN = {
-  $expr: {
-    $gt: [{ $size: { $filter: { input: '$members', cond: { $eq: ['$$this.role', 'admin'] } } } }, 1],
-  },
-};
+const ROOM_NOT_FOUND = "Esta sala ya no existe";
+const TASK_NOT_FOUND = "Esta tarea ya no existe";
 
-const summary = (user) => (user?.name ? serializeUserSummary(user) : { _id: user?._id ?? user, name: null });
+const toRoom = (row) => ({
+  _id: row.sala_id,
+  name: row.nombre,
+  description: row.descripcion,
+  scheduledAt: row.fecha_sesion,
+  subject: subjectOfRoom(row),
+  lastActivityAt: row.ultima_actividad,
+  createdAt: row.fecha_creacion,
+});
 
-function subjectSnapshot(user, subjectId) {
-  if (!subjectId) return null;
-  const subject = user.subjects.id(subjectId);
-  if (!subject) throw ApiError.unprocessable('La asignatura no existe', { subjectId: 'Elige una de tus asignaturas' });
-  return { name: subject.name, color: subject.color };
+const count = async (text, ...args) => (await sql(text).get(...args)).count;
+const countMembers = (roomId) =>
+  count(
+    "SELECT COUNT(*) AS count FROM Participantes_Salas WHERE sala_id = ?",
+    roomId,
+  );
+const countAdmins = (roomId) =>
+  count(
+    "SELECT COUNT(*) AS count FROM Participantes_Salas WHERE sala_id = ? AND rol = 'admin'",
+    roomId,
+  );
+const countInvitations = (roomId) =>
+  count(
+    "SELECT COUNT(*) AS count FROM Invitaciones_Salas WHERE sala_id = ?",
+    roomId,
+  );
+
+export async function membershipOf(roomId, userId) {
+  const row = await sql(
+    "SELECT rol, fecha_union FROM Participantes_Salas WHERE sala_id = ? AND usuario_id = ?",
+  ).get(roomId, userId);
+  return row
+    ? { user: userId, role: row.rol, joinedAt: row.fecha_union }
+    : null;
 }
 
-export function serializeRoom(room) {
+const isInvited = async (roomId, userId) =>
+  Boolean(
+    await sql(
+      "SELECT 1 FROM Invitaciones_Salas WHERE sala_id = ? AND usuario_id = ?",
+    ).get(roomId, userId),
+  );
+
+// Para el middleware loadRoom: la sala, la participación del usuario y si tiene invitación, en una consulta.
+export async function getRoomAccess(roomId, userId) {
+  const row = await sql(
+    `SELECT s.*, p.rol, p.fecha_union,
+            EXISTS (SELECT 1 FROM Invitaciones_Salas i WHERE i.sala_id = s.sala_id AND i.usuario_id = @me) AS invitado
+       FROM Salas s LEFT JOIN Participantes_Salas p ON p.sala_id = s.sala_id AND p.usuario_id = @me
+      WHERE s.sala_id = @roomId`,
+  ).get({ roomId, me: userId });
+  if (!row) return null;
   return {
-    _id: room._id,
-    name: room.name,
-    description: room.description,
-    scheduledAt: room.scheduledAt,
-    subject: room.subject,
-    createdBy: summary(room.createdBy),
-    members: room.members.map((member) => ({ user: summary(member.user), role: member.role, joinedAt: member.joinedAt })),
-    invitations: room.invitations.map((invitation) => ({
-      user: summary(invitation.user),
-      invitedBy: invitation.invitedBy,
-      createdAt: invitation.createdAt,
-    })),
-    tasks: room.tasks.map((task) => task.toObject()),
-    stats: room.stats,
-    lastActivityAt: room.lastActivityAt,
-    createdAt: room.createdAt,
+    room: toRoom(row),
+    membership: row.rol
+      ? { user: userId, role: row.rol, joinedAt: row.fecha_union }
+      : null,
+    invited: row.invitado,
   };
 }
 
-export async function getRoomDetail(roomId) {
-  const room = await Room.findById(roomId).populate([
-    { path: 'members.user', select: USER_SUMMARY_FIELDS },
-    { path: 'invitations.user', select: USER_SUMMARY_FIELDS },
-    { path: 'createdBy', select: USER_SUMMARY_FIELDS },
-  ]);
-  if (!room) throw ApiError.notFound('Esta sala ya no existe', 'ROOM_NOT_FOUND');
-  return serializeRoom(room);
+export const isMember = async (roomId, userId) =>
+  Boolean(await membershipOf(roomId, userId));
+
+const touch = (roomId) =>
+  sql(
+    "UPDATE Salas SET ultima_actividad = ?, fecha_actualizacion = ? WHERE sala_id = ?",
+  ).run(nowIso(), nowIso(), roomId);
+
+export async function listRoomTasks(roomId) {
+  const rows = await sql(
+    "SELECT * FROM Tareas_Sala WHERE sala_id = ? ORDER BY tarea_sala_id",
+  ).all(roomId);
+  return rows.map(toRoomTask);
 }
 
-// Tras cada cambio, todos los participantes conectados reciben la sala actualizada.
-async function broadcastRoom(roomId) {
+export async function getRoomDetail(roomId) {
+  const [row, members, invitations, tasks] = await Promise.all([
+    sql(
+      `SELECT s.*, ${summaryColumns("c", "creator")}
+         FROM Salas s LEFT JOIN Usuarios c ON c.usuario_id = s.creador_id
+        WHERE s.sala_id = ?`,
+    ).get(roomId),
+    sql(
+      `SELECT p.rol, p.fecha_union, ${summaryColumns("u", "member")}
+         FROM Participantes_Salas p JOIN Usuarios u ON u.usuario_id = p.usuario_id
+        WHERE p.sala_id = ? ORDER BY p.fecha_union, u.nombre`,
+    ).all(roomId),
+    sql(
+      `SELECT i.invitado_por, i.fecha_invitacion, ${summaryColumns("u", "guest")}
+         FROM Invitaciones_Salas i JOIN Usuarios u ON u.usuario_id = i.usuario_id
+        WHERE i.sala_id = ? ORDER BY i.fecha_invitacion`,
+    ).all(roomId),
+    listRoomTasks(roomId),
+  ]);
+  if (!row) throw ApiError.notFound(ROOM_NOT_FOUND, "ROOM_NOT_FOUND");
+
+  return {
+    ...toRoom(row),
+    createdBy: summaryFrom(row, "creator"),
+    members: members.map((member) => ({
+      user: summaryFrom(member, "member"),
+      role: member.rol,
+      joinedAt: member.fecha_union,
+    })),
+    invitations: invitations.map((invitation) => ({
+      user: summaryFrom(invitation, "guest"),
+      invitedBy: invitation.invitado_por,
+      createdAt: invitation.fecha_invitacion,
+    })),
+    tasks,
+    stats: { messages: row.mensajes, files: row.archivos },
+  };
+}
+
+// Tras cada cambio: quien lo hace recibe la sala completa en la respuesta y el resto de
+// participantes conectados solo lo que ha cambiado (`room:patch`), que aplican sobre su copia.
+// `pick` elige del detalle las partes que cambian: info, members, invitations, tasks, task…
+const ROOM_INFO = ({ name, description, scheduledAt, subject }) => ({
+  info: { name, description, scheduledAt, subject },
+});
+
+async function broadcastRoom(roomId, pick) {
   const detail = await getRoomDetail(roomId);
-  emitToRoom(roomId, 'room:updated', detail);
+  emitToRoom(roomId, "room:patch", {
+    roomId,
+    lastActivityAt: detail.lastActivityAt,
+    stats: detail.stats,
+    ...pick(detail),
+  });
   return detail;
 }
 
-const touch = () => ({ lastActivityAt: new Date() });
+const taskPatch = (taskId) => (detail) => ({
+  task: detail.tasks.find((task) => task._id === String(taskId)),
+});
 
-export async function listRooms(userId) {
-  const rooms = await Room.find({ 'members.user': userId })
-    .sort({ lastActivityAt: -1 })
-    .populate('members.user', USER_SUMMARY_FIELDS);
+// Salas del usuario por actividad reciente. Con `limit` (dashboard) solo se leen las primeras.
+export async function listRooms(userId, { limit = null } = {}) {
+  const rows = await sql(
+    `SELECT s.*, p.rol AS mi_rol,
+            (SELECT COUNT(*) FROM Participantes_Salas x WHERE x.sala_id = s.sala_id) AS participantes,
+            (SELECT COUNT(*) FROM Tareas_Sala t WHERE t.sala_id = s.sala_id AND t.estado <> 'completed'
+                                                  AND t.usuario_id = @me) AS mis_abiertas
+       FROM Salas s JOIN Participantes_Salas p ON p.sala_id = s.sala_id AND p.usuario_id = @me
+      ORDER BY s.ultima_actividad DESC
+      LIMIT @limit`,
+  ).all({ me: userId, limit });
 
-  return rooms.map((room) => {
-    const openTasks = room.tasks.filter((task) => task.status !== 'completed');
-    return {
-      _id: room._id,
-      name: room.name,
-      description: room.description,
-      subject: room.subject,
-      scheduledAt: room.scheduledAt,
-      lastActivityAt: room.lastActivityAt,
-      stats: room.stats,
-      myRole: room.membershipOf(userId)?.role,
-      memberCount: room.members.length,
-      members: room.members.slice(0, 5).map((member) => summary(member.user)),
-      openTasks: openTasks.length,
-      myOpenTasks: openTasks.filter((task) => sameId(task.assignee, userId)).length,
-    };
-  });
+  // Los cinco primeros participantes de cada sala, en una sola consulta.
+  const faces = await sql(
+    `SELECT sala_id, ${summaryColumns("u", "member")}
+       FROM (SELECT p.*, ROW_NUMBER() OVER (PARTITION BY p.sala_id ORDER BY p.fecha_union) AS orden
+               FROM Participantes_Salas p
+              WHERE p.sala_id = ANY(@rooms::text[])) p
+       JOIN Usuarios u ON u.usuario_id = p.usuario_id
+      WHERE p.orden <= 5
+      ORDER BY p.sala_id, p.orden`,
+  ).all({ rooms: rows.map((row) => row.sala_id) });
+  const facesByRoom = new Map();
+  for (const face of faces)
+    facesByRoom.set(face.sala_id, [
+      ...(facesByRoom.get(face.sala_id) ?? []),
+      face,
+    ]);
+
+  return rows.map((row) => ({
+    ...toRoom(row),
+    stats: { messages: row.mensajes, files: row.archivos },
+    myRole: row.mi_rol,
+    memberCount: row.participantes,
+    members: (facesByRoom.get(row.sala_id) ?? []).map((face) =>
+      summaryFrom(face, "member"),
+    ),
+    openTasks: row.tareas_abiertas,
+    myOpenTasks: row.mis_abiertas,
+  }));
 }
 
-export async function listInvitations(userId) {
-  const rooms = await Room.find({ 'invitations.user': userId })
-    .sort({ updatedAt: -1 })
-    .populate('invitations.invitedBy', USER_SUMMARY_FIELDS);
+export const countUserRooms = (userId) =>
+  count(
+    "SELECT COUNT(*) AS count FROM Participantes_Salas WHERE usuario_id = ?",
+    userId,
+  );
 
-  return rooms.map((room) => {
-    const invitation = room.invitations.find((item) => sameId(item.user, userId));
-    return {
-      room: {
-        _id: room._id,
-        name: room.name,
-        description: room.description,
-        subject: room.subject,
-        scheduledAt: room.scheduledAt,
-        memberCount: room.members.length,
-      },
-      invitedBy: summary(invitation.invitedBy),
-      createdAt: invitation.createdAt,
-    };
-  });
+export const countUserInvitations = (userId) =>
+  count(
+    "SELECT COUNT(*) AS count FROM Invitaciones_Salas WHERE usuario_id = ?",
+    userId,
+  );
+
+export async function listInvitations(userId) {
+  const rows = await sql(
+    `SELECT s.*, i.fecha_invitacion, ${summaryColumns("u", "inviter")},
+            (SELECT COUNT(*) FROM Participantes_Salas x WHERE x.sala_id = s.sala_id) AS participantes
+       FROM Invitaciones_Salas i
+       JOIN Salas s ON s.sala_id = i.sala_id
+       JOIN Usuarios u ON u.usuario_id = i.invitado_por
+      WHERE i.usuario_id = ?
+      ORDER BY i.fecha_invitacion DESC`,
+  ).all(userId);
+  return rows.map((row) => ({
+    room: {
+      _id: row.sala_id,
+      name: row.nombre,
+      description: row.descripcion,
+      subject: subjectOfRoom(row),
+      scheduledAt: row.fecha_sesion,
+      memberCount: row.participantes,
+    },
+    invitedBy: summaryFrom(row, "inviter"),
+    createdAt: row.fecha_invitacion,
+  }));
 }
 
 // Sesiones programadas y tareas de sala asignadas al usuario dentro de un rango de fechas.
 export async function getAgenda(userId, { from, to }) {
-  const rooms = await Room.find({
-    'members.user': userId,
-    $or: [
-      { scheduledAt: { $gte: from, $lte: to } },
-      { tasks: { $elemMatch: { assignee: userId, dueDate: { $gte: from, $lte: to } } } },
-    ],
-  }).select('name subject scheduledAt tasks');
+  const params = { me: userId, from: iso(from), to: iso(to) };
 
-  const events = [];
-  for (const room of rooms) {
-    const base = { roomId: room._id, roomName: room.name, subject: room.subject };
-    if (room.scheduledAt && room.scheduledAt >= from && room.scheduledAt <= to) {
-      events.push({ ...base, kind: 'session', _id: `session-${room._id}`, title: room.name, date: room.scheduledAt });
-    }
-    for (const task of room.tasks) {
-      if (sameId(task.assignee, userId) && task.dueDate && task.dueDate >= from && task.dueDate <= to) {
-        events.push({
-          ...base,
-          kind: 'room_task',
-          _id: `task-${task._id}`,
-          taskId: task._id,
-          title: task.title,
-          date: task.dueDate,
-          status: task.status,
-        });
-      }
-    }
-  }
-  return events.sort((a, b) => a.date - b.date);
+  const [sessionRows, taskRows] = await Promise.all([
+    sql(
+      `SELECT s.* FROM Salas s JOIN Participantes_Salas p ON p.sala_id = s.sala_id AND p.usuario_id = @me
+        WHERE s.fecha_sesion BETWEEN @from AND @to`,
+    ).all(params),
+    sql(
+      `SELECT t.*, s.nombre AS sala_nombre, s.asignatura_nombre, s.asignatura_color
+         FROM Tareas_Sala t JOIN Salas s ON s.sala_id = t.sala_id
+        WHERE t.usuario_id = @me AND t.fecha_entrega BETWEEN @from AND @to`,
+    ).all(params),
+  ]);
+
+  const sessions = sessionRows.map((row) => ({
+    roomId: row.sala_id,
+    roomName: row.nombre,
+    subject: subjectOfRoom(row),
+    kind: "session",
+    _id: `session-${row.sala_id}`,
+    title: row.nombre,
+    date: row.fecha_sesion,
+  }));
+  const tasks = taskRows.map((row) => ({
+    roomId: row.sala_id,
+    roomName: row.sala_nombre,
+    subject: subjectOfRoom(row),
+    kind: "room_task",
+    _id: `task-${row.tarea_sala_id}`,
+    taskId: String(row.tarea_sala_id),
+    title: row.titulo,
+    date: row.fecha_entrega,
+    status: row.estado,
+  }));
+
+  return [...sessions, ...tasks].sort((a, b) => a.date.localeCompare(b.date));
 }
 
-export async function createRoom(user, { name, description, subjectId, scheduledAt }) {
-  const room = await Room.create({
-    name,
-    description,
-    scheduledAt,
-    subject: subjectSnapshot(user, subjectId),
-    createdBy: user._id,
-    members: [{ user: user._id, role: 'admin' }],
+// Las asignaturas son privadas: la sala guarda una copia del nombre y el color.
+function subjectSnapshot(user, subjectId) {
+  if (!subjectId) return { name: null, color: null };
+  const subject = user.subjects.find((item) => sameId(item._id, subjectId));
+  if (!subject)
+    throw ApiError.unprocessable("La asignatura no existe", {
+      subjectId: "Elige una de tus asignaturas",
+    });
+  return { name: subject.name, color: subject.color };
+}
+
+export async function createRoom(
+  user,
+  { name, description, subjectId, scheduledAt },
+) {
+  const subject = subjectSnapshot(user, subjectId);
+  const roomId = generatePublicId();
+
+  await transaction(async () => {
+    await sql(
+      `INSERT INTO Salas (sala_id, nombre, descripcion, fecha_sesion, asignatura_nombre, asignatura_color, creador_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    ).run(
+      roomId,
+      name,
+      description,
+      iso(scheduledAt),
+      subject.name,
+      subject.color,
+      user._id,
+    );
+    await sql(
+      "INSERT INTO Participantes_Salas (sala_id, usuario_id, rol) VALUES (?, ?, 'admin')",
+    ).run(roomId, user._id);
   });
-  return getRoomDetail(room._id);
+  return getRoomDetail(roomId);
 }
 
 export async function updateRoom(room, user, data) {
-  const update = { ...touch() };
-  for (const field of ['name', 'description', 'scheduledAt']) {
-    if (data[field] !== undefined) update[field] = data[field];
+  const set = { ultima_actividad: nowIso(), fecha_actualizacion: nowIso() };
+  if (data.name !== undefined) set.nombre = data.name;
+  if (data.description !== undefined) set.descripcion = data.description;
+  if (data.scheduledAt !== undefined) set.fecha_sesion = iso(data.scheduledAt);
+  if (data.subjectId !== undefined) {
+    const subject = subjectSnapshot(user, data.subjectId);
+    set.asignatura_nombre = subject.name;
+    set.asignatura_color = subject.color;
   }
-  if (data.subjectId !== undefined) update.subject = subjectSnapshot(user, data.subjectId);
 
-  await Room.updateOne({ _id: room._id }, { $set: update });
-  return broadcastRoom(room._id);
+  const assignments = Object.keys(set)
+    .map((column) => `${column} = @${column}`)
+    .join(", ");
+  await sql(`UPDATE Salas SET ${assignments} WHERE sala_id = @roomId`).run({
+    ...set,
+    roomId: room._id,
+  });
+  return broadcastRoom(room._id, ROOM_INFO);
 }
 
+// ON DELETE CASCADE borra participantes, invitaciones, tareas, mensajes, archivos y avisos.
 export async function deleteRoom(room) {
-  const roomId = room._id;
-  await Promise.all([
-    Message.deleteMany({ room: roomId }),
-    RoomFile.deleteMany({ room: roomId }),
-    Notification.deleteMany({ room: roomId }),
-  ]);
-  await Room.deleteOne({ _id: roomId });
-  await removeDirectory(paths.room(roomId));
+  await sql("DELETE FROM Salas WHERE sala_id = ?").run(room._id);
+  await removeRoomFiles(room._id);
 
-  emitToRoom(roomId, 'room:deleted', { roomId });
-  closeRoomChannel(roomId);
+  emitToRoom(room._id, "room:deleted", { roomId: room._id });
+  closeRoomChannel(room._id);
 }
+
+// Las operaciones que comprueban una regla de la sala y después escriben empiezan bloqueando la
+// fila de la sala (lockRow): dos peticiones a la vez sobre la misma sala no pueden saltarse los
+// límites ni dejarla sin administradores.
 
 export async function inviteFriends(room, inviter, userIds) {
-  const candidates = [...new Set(userIds.map(String))].filter(
-    (id) => !room.membershipOf(id) && !room.isInvited(id) && !sameId(id, inviter._id),
+  const ids = [...new Set(userIds.map(String))].filter(
+    (id) => !sameId(id, inviter._id),
   );
+  const flags = await Promise.all(
+    ids.map(async (id) => ({
+      id,
+      taken: (await isMember(room._id, id)) || (await isInvited(room._id, id)),
+      friend: await areFriends(inviter._id, id),
+    })),
+  );
+  const candidates = flags.filter((flag) => !flag.taken);
   if (candidates.length === 0) {
-    throw ApiError.conflict('Esas personas ya están en la sala o tienen una invitación pendiente', 'ALREADY_INVITED');
+    throw ApiError.conflict(
+      "Esas personas ya están en la sala o tienen una invitación pendiente",
+      "ALREADY_INVITED",
+    );
   }
+  const invitable = candidates
+    .filter((flag) => flag.friend)
+    .map((flag) => flag.id);
+  if (invitable.length === 0)
+    throw ApiError.unprocessable("Solo puedes invitar a tus amigos", {
+      userIds: "Elige amigos tuyos",
+    });
 
-  const friendships = await Friendship.find({
-    pairKey: { $in: candidates.map((id) => Friendship.pairKeyFor(inviter._id, id)) },
-    status: 'accepted',
+  await transaction(async () => {
+    await lockRow("sala", room._id);
+    const [members, invitations] = await Promise.all([
+      countMembers(room._id),
+      countInvitations(room._id),
+    ]);
+    if (members + invitations + invitable.length > LIMITS.membersPerRoom) {
+      throw ApiError.conflict(
+        `Una sala admite como máximo ${LIMITS.membersPerRoom} personas`,
+        "ROOM_FULL",
+      );
+    }
+    await sql(
+      `INSERT INTO Invitaciones_Salas (sala_id, usuario_id, invitado_por)
+       SELECT @roomId, invitado, @inviter FROM unnest(@users::text[]) AS invitado`,
+    ).run({ roomId: room._id, inviter: inviter._id, users: invitable });
   });
-  const friendIds = new Set(friendships.flatMap((friendship) => friendship.users.map(String)));
-  const invitable = candidates.filter((id) => friendIds.has(id));
-
-  if (invitable.length === 0) throw ApiError.unprocessable('Solo puedes invitar a tus amigos', { userIds: 'Elige amigos tuyos' });
-  if (room.members.length + room.invitations.length + invitable.length > LIMITS.membersPerRoom) {
-    throw ApiError.conflict(`Una sala admite como máximo ${LIMITS.membersPerRoom} personas`, 'ROOM_FULL');
-  }
-
-  const now = new Date();
-  const result = await Room.updateOne(
-    { _id: room._id, 'invitations.user': { $nin: invitable }, 'members.user': { $nin: invitable } },
-    { $push: { invitations: { $each: invitable.map((id) => ({ user: id, invitedBy: inviter._id, createdAt: now })) } } },
-  );
-  if (result.modifiedCount === 0) {
-    throw ApiError.conflict('La sala ha cambiado mientras invitabas. Vuelve a intentarlo.', 'ROOM_CHANGED');
-  }
 
   await notify({
     recipients: invitable,
-    type: 'room_invitation',
+    type: "room_invitation",
     actor: inviter._id,
     room: room._id,
     data: { actorName: inviter.name, roomName: room.name },
   });
-  return broadcastRoom(room._id);
+  return broadcastRoom(room._id, ({ invitations }) => ({ invitations }));
 }
 
 export async function acceptInvitation(roomId, user) {
-  const now = new Date();
-  // Paso atómico de invitado a participante, solo si queda sitio.
-  const room = await Room.findOneAndUpdate(
-    {
-      _id: roomId,
-      'invitations.user': user._id,
-      'members.user': { $ne: user._id },
-      [`members.${LIMITS.membersPerRoom - 1}`]: { $exists: false },
-    },
-    {
-      $pull: { invitations: { user: user._id } },
-      $push: { members: { user: user._id, role: 'member', joinedAt: now } },
-      $set: { lastActivityAt: now },
-    },
-    { new: true },
-  );
+  // De invitado a participante en una sola transacción, solo si queda sitio.
+  await transaction(async () => {
+    await lockRow("sala", roomId);
+    if (!(await isInvited(roomId, user._id))) {
+      throw ApiError.notFound(
+        "Esta invitación ya no está disponible",
+        "INVITATION_NOT_FOUND",
+      );
+    }
+    if ((await countMembers(roomId)) >= LIMITS.membersPerRoom)
+      throw ApiError.conflict("La sala está completa", "ROOM_FULL");
 
-  if (!room) {
-    const stillInvited = await Room.exists({ _id: roomId, 'invitations.user': user._id });
-    if (stillInvited) throw ApiError.conflict('La sala está completa', 'ROOM_FULL');
-    throw ApiError.notFound('Esta invitación ya no está disponible', 'INVITATION_NOT_FOUND');
-  }
+    await sql(
+      "DELETE FROM Invitaciones_Salas WHERE sala_id = ? AND usuario_id = ?",
+    ).run(roomId, user._id);
+    await sql(
+      "INSERT INTO Participantes_Salas (sala_id, usuario_id, rol) VALUES (?, ?, 'member')",
+    ).run(roomId, user._id);
+    await touch(roomId);
+  });
 
-  const admins = room.members.filter((member) => member.role === 'admin').map((member) => member.user);
-  await Promise.all([
-    resolveActionable({ recipient: user._id, type: 'room_invitation', room: room._id }),
-    notify({
-      recipients: admins,
-      type: 'room_member_joined',
-      actor: user._id,
-      room: room._id,
-      data: { actorName: user.name, roomName: room.name },
-    }),
+  const [{ nombre: roomName }, admins] = await Promise.all([
+    sql("SELECT nombre FROM Salas WHERE sala_id = ?").get(roomId),
+    sql(
+      "SELECT usuario_id FROM Participantes_Salas WHERE sala_id = ? AND rol = 'admin'",
+    ).all(roomId),
   ]);
-  return broadcastRoom(room._id);
+
+  await resolveActionable({
+    type: "room_invitation",
+    recipient: user._id,
+    room: roomId,
+  });
+  await notify({
+    recipients: admins.map((row) => row.usuario_id),
+    type: "room_member_joined",
+    actor: user._id,
+    room: roomId,
+    data: { actorName: user.name, roomName },
+  });
+  return broadcastRoom(roomId, ({ members, invitations }) => ({
+    members,
+    invitations,
+  }));
 }
 
 export async function declineInvitation(roomId, user) {
-  const result = await Room.updateOne(
-    { _id: roomId, 'invitations.user': user._id },
-    { $pull: { invitations: { user: user._id } } },
-  );
-  if (result.modifiedCount === 0) throw ApiError.notFound('Esta invitación ya no está disponible', 'INVITATION_NOT_FOUND');
+  const { changes } = await sql(
+    "DELETE FROM Invitaciones_Salas WHERE sala_id = ? AND usuario_id = ?",
+  ).run(roomId, user._id);
+  if (changes === 0)
+    throw ApiError.notFound(
+      "Esta invitación ya no está disponible",
+      "INVITATION_NOT_FOUND",
+    );
 
-  await resolveActionable({ recipient: user._id, type: 'room_invitation', room: roomId });
-  await broadcastRoom(roomId);
+  await resolveActionable({
+    type: "room_invitation",
+    recipient: user._id,
+    room: roomId,
+  });
+  await broadcastRoom(roomId, ({ invitations }) => ({ invitations }));
 }
 
 export async function cancelInvitation(room, userId) {
-  const result = await Room.updateOne({ _id: room._id }, { $pull: { invitations: { user: userId } } });
-  if (result.modifiedCount === 0) throw ApiError.notFound('Esa persona no tiene una invitación pendiente');
+  const { changes } = await sql(
+    "DELETE FROM Invitaciones_Salas WHERE sala_id = ? AND usuario_id = ?",
+  ).run(room._id, userId);
+  if (changes === 0)
+    throw ApiError.notFound("Esa persona no tiene una invitación pendiente");
 
-  await Notification.deleteMany({ recipient: userId, type: 'room_invitation', room: room._id, read: false });
-  return broadcastRoom(room._id);
+  await removeRoomInvitationNotice(userId, room._id);
+  return broadcastRoom(room._id, ({ invitations }) => ({ invitations }));
 }
 
 export async function updateMemberRole(room, actor, userId, role) {
-  const target = room.membershipOf(userId);
-  if (!target) throw ApiError.notFound('Esa persona no forma parte de la sala');
-  if (target.role === role) return getRoomDetail(room._id);
+  const changed = await transaction(async () => {
+    await lockRow("sala", room._id);
+    const target = await membershipOf(room._id, userId);
+    if (!target)
+      throw ApiError.notFound("Esa persona no forma parte de la sala");
+    if (target.role === role) return false;
+    // La sala conserva al menos una persona administradora.
+    if (role === "member" && (await countAdmins(room._id)) <= 1) {
+      throw ApiError.conflict(
+        "La sala necesita al menos una persona administradora",
+        "LAST_ADMIN",
+      );
+    }
+    await sql(
+      "UPDATE Participantes_Salas SET rol = ? WHERE sala_id = ? AND usuario_id = ?",
+    ).run(role, room._id, userId);
+    return true;
+  });
+  if (!changed) return getRoomDetail(room._id);
 
-  const filter = { _id: room._id, 'members.user': userId, ...(role === 'member' ? HAS_SPARE_ADMIN : {}) };
-  const result = await Room.updateOne(filter, { $set: { 'members.$.role': role } });
-  if (result.modifiedCount === 0) {
-    throw ApiError.conflict('La sala necesita al menos una persona administradora', 'LAST_ADMIN');
-  }
-
-  if (role === 'admin') {
+  if (role === "admin") {
     await notify({
       recipients: [userId],
-      type: 'room_role_changed',
+      type: "room_role_changed",
       actor: actor._id,
       room: room._id,
       data: { actorName: actor.name, roomName: room.name, role },
     });
   }
-  return broadcastRoom(room._id);
+  return broadcastRoom(room._id, ({ members }) => ({ members }));
 }
 
-// Expulsar (administradores) o salir (uno mismo). Las tareas de esa persona quedan sin asignar.
+// Expulsar (administradores) o salir (uno mismo). Las tareas de esa persona quedan sin asignar
+// (trigger tr_participantes_salida_desasigna).
 export async function removeMember(room, actor, actorMembership, userId) {
   const isSelf = sameId(actor._id, userId);
-  if (!isSelf && actorMembership.role !== 'admin') {
-    throw ApiError.forbidden('Solo los administradores pueden quitar participantes', 'ROOM_ADMIN_REQUIRED');
+  if (!isSelf && actorMembership.role !== "admin") {
+    throw ApiError.forbidden(
+      "Solo los administradores pueden quitar participantes",
+      "ROOM_ADMIN_REQUIRED",
+    );
   }
 
-  const target = room.membershipOf(userId);
-  if (!target) throw ApiError.notFound('Esa persona no forma parte de la sala');
-  if (room.members.length === 1) {
-    throw ApiError.conflict('Eres la única persona en la sala. Si ya no la necesitas, elimínala.', 'LAST_MEMBER');
-  }
-
-  const filter = { _id: room._id, 'members.user': userId, ...(target.role === 'admin' ? HAS_SPARE_ADMIN : {}) };
-  const result = await Room.updateOne(
-    filter,
-    { $pull: { members: { user: userId } }, $set: { 'tasks.$[assigned].assignee': null, ...touch() } },
-    { arrayFilters: [{ 'assigned.assignee': userId }] },
-  );
-  if (result.modifiedCount === 0) {
-    throw ApiError.conflict('Nombra a otra persona administradora antes de salir', 'LAST_ADMIN');
-  }
+  await transaction(async () => {
+    await lockRow("sala", room._id);
+    const target = await membershipOf(room._id, userId);
+    if (!target)
+      throw ApiError.notFound("Esa persona no forma parte de la sala");
+    if ((await countMembers(room._id)) === 1) {
+      throw ApiError.conflict(
+        "Eres la única persona en la sala. Si ya no la necesitas, elimínala.",
+        "LAST_MEMBER",
+      );
+    }
+    if (target.role === "admin" && (await countAdmins(room._id)) <= 1) {
+      throw ApiError.conflict(
+        "Nombra a otra persona administradora antes de salir",
+        "LAST_ADMIN",
+      );
+    }
+    await sql(
+      "DELETE FROM Participantes_Salas WHERE sala_id = ? AND usuario_id = ?",
+    ).run(room._id, userId);
+    await touch(room._id);
+  });
 
   detachUserFromRoom(userId, room._id);
-  if (!isSelf) emitToUser(userId, 'room:removed', { roomId: room._id, roomName: room.name });
-  return broadcastRoom(room._id);
+  if (!isSelf)
+    emitToUser(userId, "room:removed", {
+      roomId: room._id,
+      roomName: room.name,
+    });
+  return broadcastRoom(room._id, ({ members, tasks }) => ({ members, tasks }));
 }
 
-function assertAssignable(room, assigneeId) {
-  if (assigneeId && !room.membershipOf(assigneeId)) {
-    throw ApiError.unprocessable('Esa persona no está en la sala', { assigneeId: 'Elige a alguien de la sala' });
+async function findRoomTask(roomId, taskId) {
+  const row = await sql(
+    "SELECT * FROM Tareas_Sala WHERE tarea_sala_id = ? AND sala_id = ?",
+  ).get(taskId, roomId);
+  if (!row) throw ApiError.notFound(TASK_NOT_FOUND);
+  return toRoomTask(row);
+}
+
+async function assertAssignable(roomId, assigneeId) {
+  if (assigneeId && !(await isMember(roomId, assigneeId))) {
+    throw ApiError.unprocessable("Esa persona no está en la sala", {
+      assigneeId: "Elige a alguien de la sala",
+    });
   }
 }
 
@@ -340,7 +574,7 @@ async function notifyAssignment(room, actor, assigneeId, task) {
   if (!assigneeId || sameId(assigneeId, actor._id)) return;
   await notify({
     recipients: [assigneeId],
-    type: 'room_task_assigned',
+    type: "room_task_assigned",
     actor: actor._id,
     room: room._id,
     task: task._id,
@@ -348,62 +582,94 @@ async function notifyAssignment(room, actor, assigneeId, task) {
   });
 }
 
-export async function createRoomTask(room, actor, { assigneeId, status, ...data }) {
-  assertAssignable(room, assigneeId);
+const completedAtFor = (status) => (status === "completed" ? nowIso() : null);
 
-  const updated = await Room.findOneAndUpdate(
-    { _id: room._id, [`tasks.${LIMITS.tasksPerRoom - 1}`]: { $exists: false } },
-    {
-      $push: {
-        tasks: {
-          ...data,
-          status,
-          assignee: assigneeId,
-          createdBy: actor._id,
-          completedAt: status === 'completed' ? new Date() : null,
-        },
-      },
-      $set: touch(),
-    },
-    { new: true },
-  );
-  if (!updated) throw ApiError.conflict(`Una sala admite como máximo ${LIMITS.tasksPerRoom} tareas`, 'ROOM_TASK_LIMIT');
+export async function createRoomTask(
+  room,
+  actor,
+  { title, description, dueDate, assigneeId, status },
+) {
+  await assertAssignable(room._id, assigneeId);
 
-  await notifyAssignment(room, actor, assigneeId, updated.tasks.at(-1));
-  return broadcastRoom(room._id);
+  const taskId = await transaction(async () => {
+    await lockRow("sala", room._id);
+    if (
+      (await count(
+        "SELECT COUNT(*) AS count FROM Tareas_Sala WHERE sala_id = ?",
+        room._id,
+      )) >= LIMITS.tasksPerRoom
+    ) {
+      throw ApiError.conflict(
+        `Una sala admite como máximo ${LIMITS.tasksPerRoom} tareas`,
+        "ROOM_TASK_LIMIT",
+      );
+    }
+    const { lastInsertRowid } = await sql(
+      `INSERT INTO Tareas_Sala (sala_id, usuario_id, creador_id, titulo, descripcion, fecha_entrega, estado, fecha_completada)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING tarea_sala_id`,
+    ).run(
+      room._id,
+      assigneeId,
+      actor._id,
+      title,
+      description,
+      iso(dueDate),
+      status,
+      completedAtFor(status),
+    );
+    await touch(room._id);
+    return lastInsertRowid;
+  });
+
+  await notifyAssignment(room, actor, assigneeId, { _id: taskId, title });
+  return broadcastRoom(room._id, taskPatch(taskId));
 }
 
-export async function updateRoomTask(room, actor, taskId, { assigneeId, status, ...data }) {
-  const task = room.tasks.id(taskId);
-  if (!task) throw ApiError.notFound('Esta tarea ya no existe');
-  if (assigneeId !== undefined) assertAssignable(room, assigneeId);
+export async function updateRoomTask(room, actor, taskId, data) {
+  const task = await findRoomTask(room._id, taskId);
+  if (data.assigneeId !== undefined)
+    await assertAssignable(room._id, data.assigneeId);
 
-  const set = { ...touch() };
-  for (const [field, value] of Object.entries(data)) {
-    if (value !== undefined) set[`tasks.$.${field}`] = value;
+  const set = { fecha_actualizacion: nowIso() };
+  if (data.title !== undefined) set.titulo = data.title;
+  if (data.description !== undefined) set.descripcion = data.description;
+  if (data.dueDate !== undefined) set.fecha_entrega = iso(data.dueDate);
+  if (data.assigneeId !== undefined) set.usuario_id = data.assigneeId;
+  if (data.status && data.status !== task.status) {
+    set.estado = data.status;
+    set.fecha_completada = completedAtFor(data.status);
   }
-  if (assigneeId !== undefined) set['tasks.$.assignee'] = assigneeId;
-  if (status && status !== task.status) {
-    set['tasks.$.status'] = status;
-    set['tasks.$.completedAt'] = status === 'completed' ? new Date() : null;
-  }
-  set['tasks.$.updatedAt'] = new Date();
 
-  await Room.updateOne({ _id: room._id, 'tasks._id': taskId }, { $set: set });
+  const assignments = Object.keys(set)
+    .map((column) => `${column} = @${column}`)
+    .join(", ");
+  await transaction(async () => {
+    await sql(
+      `UPDATE Tareas_Sala SET ${assignments} WHERE tarea_sala_id = @taskId`,
+    ).run({ ...set, taskId });
+    await touch(room._id);
+  });
 
-  if (assigneeId && !sameId(assigneeId, task.assignee)) {
-    await notifyAssignment(room, actor, assigneeId, { _id: task._id, title: data.title ?? task.title });
+  if (data.assigneeId && !sameId(data.assigneeId, task.assignee)) {
+    await notifyAssignment(room, actor, data.assigneeId, {
+      _id: task._id,
+      title: data.title ?? task.title,
+    });
   }
-  return broadcastRoom(room._id);
+  return broadcastRoom(room._id, taskPatch(taskId));
 }
 
 export async function deleteRoomTask(room, actor, membership, taskId) {
-  const task = room.tasks.id(taskId);
-  if (!task) throw ApiError.notFound('Esta tarea ya no existe');
-  if (!sameId(task.createdBy, actor._id) && membership.role !== 'admin') {
-    throw ApiError.forbidden('Solo quien creó la tarea o un administrador puede eliminarla');
+  const task = await findRoomTask(room._id, taskId);
+  if (!sameId(task.createdBy, actor._id) && membership.role !== "admin") {
+    throw ApiError.forbidden(
+      "Solo quien creó la tarea o un administrador puede eliminarla",
+    );
   }
 
-  await Room.updateOne({ _id: room._id }, { $pull: { tasks: { _id: taskId } }, $set: touch() });
-  return broadcastRoom(room._id);
+  await transaction(async () => {
+    await sql("DELETE FROM Tareas_Sala WHERE tarea_sala_id = ?").run(taskId);
+    await touch(room._id);
+  });
+  return broadcastRoom(room._id, () => ({ deletedTaskId: String(taskId) }));
 }

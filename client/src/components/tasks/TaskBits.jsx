@@ -1,8 +1,21 @@
-import { BookOpenText, Check, Exam, FileText, Flask, Folders, Notebook, PresentationChart } from '@phosphor-icons/react';
-import clsx from 'clsx';
-import { formatDueShort } from '../../utils/dates.js';
-import { PRIORITY_LABEL, TYPE_LABEL, isCompleted, isOverdue } from '../../utils/tasks.js';
-import styles from './Tasks.module.css';
+import {
+  BookOpenText,
+  Check,
+  Exam,
+  FileText,
+  Flask,
+  Folders,
+  Notebook,
+  PresentationChart,
+} from "@phosphor-icons/react";
+import clsx from "clsx";
+import { formatDueShort } from "../../utils/dates.js";
+import {
+  PRIORITY_LABEL,
+  TYPE_LABEL,
+  isCompleted,
+  isOverdue,
+} from "../../utils/tasks.js";
 
 const TYPE_ICONS = {
   assignment: FileText,
@@ -21,7 +34,7 @@ export function TaskTypeIcon({ type, size = 16, ...props }) {
 
 export function TaskType({ type }) {
   return (
-    <span className={styles.meta}>
+    <span className="tasks-meta">
       <TaskTypeIcon type={type} />
       {TYPE_LABEL[type]}
     </span>
@@ -32,11 +45,22 @@ export function TaskType({ type }) {
 export function PriorityMark({ priority }) {
   const level = { low: 1, medium: 2, high: 3 }[priority] ?? 1;
   return (
-    <span className={styles.priority} title={`Urgencia ${PRIORITY_LABEL[priority]?.toLowerCase()}`}>
+    <span
+      className="tasks-priority"
+      title={`Urgencia ${PRIORITY_LABEL[priority]?.toLowerCase()}`}
+    >
       {[1, 2, 3].map((bar) => (
-        <span key={bar} className={clsx(styles.priorityBar, bar <= level && styles.priorityOn)} />
+        <span
+          key={bar}
+          className={clsx(
+            "tasks-priority-bar",
+            bar <= level && "tasks-priority-on",
+          )}
+        />
       ))}
-      <span className="visually-hidden">Urgencia {PRIORITY_LABEL[priority]}</span>
+      <span className="visually-hidden">
+        Urgencia {PRIORITY_LABEL[priority]}
+      </span>
     </span>
   );
 }
@@ -44,7 +68,7 @@ export function PriorityMark({ priority }) {
 export function DueLabel({ task, now }) {
   const overdue = isOverdue(task, now);
   return (
-    <span className={clsx(styles.due, overdue && styles.dueOverdue)}>
+    <span className={clsx("tasks-due", overdue && "tasks-due-overdue")}>
       {overdue ? <span className="visually-hidden">Atrasada, </span> : null}
       {formatDueShort(task.dueDate, now)}
     </span>
@@ -57,14 +81,21 @@ export function TaskCheck({ task, onToggle, disabled, now }) {
   return (
     <button
       type="button"
-      className={clsx(styles.check, done && styles.checkDone, isOverdue(task, now) && styles.checkOverdue, task.status === 'in_progress' && styles.checkProgress)}
+      className={clsx(
+        "tasks-check",
+        done && "tasks-check-done",
+        isOverdue(task, now) && "tasks-check-overdue",
+        task.status === "in_progress" && "tasks-check-progress",
+      )}
       onClick={(event) => {
         event.stopPropagation();
         onToggle(task);
       }}
       disabled={disabled}
       aria-pressed={done}
-      aria-label={done ? `Reabrir «${task.title}»` : `Completar «${task.title}»`}
+      aria-label={
+        done ? `Reabrir «${task.title}»` : `Completar «${task.title}»`
+      }
     >
       <Check size={14} weight="bold" aria-hidden />
     </button>
@@ -74,8 +105,8 @@ export function TaskCheck({ task, onToggle, disabled, now }) {
 export function GradeBadge({ score }) {
   if (score == null) return null;
   return (
-    <span className={styles.gradeBadge} title="Nota">
-      {String(score).replace('.', ',')}
+    <span className="tasks-grade-badge" title="Nota">
+      {String(score).replace(".", ",")}
     </span>
   );
 }

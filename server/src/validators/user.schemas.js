@@ -1,15 +1,18 @@
-import { PROFILE_VISIBILITY, THEMES } from '../config/constants.js';
-import { idParams, pageLimit, request, z } from './common.js';
+import { PROFILE_VISIBILITY, THEMES } from "../config/constants.js";
+import { idParams, pageLimit, request, z } from "./common.js";
 
 export const handleRule = z
   .string()
   .trim()
   .toLowerCase()
-  .regex(/^[a-z0-9._]{3,30}$/, 'Usa entre 3 y 30 caracteres: letras, números, punto o guion bajo');
+  .regex(
+    /^[a-z0-9._]{3,30}$/,
+    "Usa entre 3 y 30 caracteres: letras, números, punto o guion bajo",
+  );
 
 export const searchUsersSchema = request({
   query: z.object({
-    q: z.string().trim().min(2, 'Escribe al menos 2 caracteres').max(60),
+    q: z.string().trim().min(2, "Escribe al menos 2 caracteres").max(60),
     limit: pageLimit(30, 20),
   }),
 });
@@ -18,7 +21,7 @@ export const profileByHandleSchema = request({
   params: z.object({ handle: handleRule }),
 });
 
-export const userIdParamsSchema = request({ params: idParams('userId') });
+export const userIdParamsSchema = request({ params: idParams("userId") });
 
 export const updateProfileSchema = request({
   body: z

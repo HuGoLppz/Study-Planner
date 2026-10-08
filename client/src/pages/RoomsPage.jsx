@@ -1,16 +1,24 @@
-import { ChatsCircle, Plus } from '@phosphor-icons/react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { RoomForm } from '../components/rooms/RoomForm.jsx';
-import styles from '../components/rooms/Rooms.module.css';
-import { AvatarStack } from '../components/ui/Avatar.jsx';
-import { Button } from '../components/ui/Button.jsx';
-import { EmptyState, ErrorState, SkeletonList } from '../components/ui/Feedback.jsx';
-import { Modal } from '../components/ui/Overlay.jsx';
-import { Page, PageHeader, Section } from '../components/ui/Page.jsx';
-import { SubjectTag } from '../components/ui/SubjectTag.jsx';
-import { useAcceptRoomInvitation, useDeclineRoomInvitation, useRoomInvitations, useRooms } from '../hooks/useRooms.js';
-import { formatAgo, formatDateTime } from '../utils/dates.js';
-import { plural } from '../utils/format.js';
+import { ChatsCircle, Plus } from "@phosphor-icons/react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { RoomForm } from "../components/rooms/RoomForm.jsx";
+import { AvatarStack } from "../components/ui/Avatar.jsx";
+import { Button } from "../components/ui/Button.jsx";
+import {
+  EmptyState,
+  ErrorState,
+  SkeletonList,
+} from "../components/ui/Feedback.jsx";
+import { Modal } from "../components/ui/Overlay.jsx";
+import { Page, PageHeader, Section } from "../components/ui/Page.jsx";
+import { SubjectTag } from "../components/ui/SubjectTag.jsx";
+import {
+  useAcceptRoomInvitation,
+  useDeclineRoomInvitation,
+  useRoomInvitations,
+  useRooms,
+} from "../hooks/useRooms.js";
+import { formatAgo, formatDateTime } from "../utils/dates.js";
+import { plural } from "../utils/format.js";
 
 function Invitations() {
   const invitations = useRoomInvitations();
@@ -21,28 +29,41 @@ function Invitations() {
   if (items.length === 0) return null;
 
   return (
-    <Section title="Invitaciones" id="rooms-invitations" className={styles.invitations}>
-      <ul className={styles.list}>
+    <Section
+      title="Invitaciones"
+      id="rooms-invitations"
+      className="rooms-invitations"
+    >
+      <ul className="rooms-list">
         {items.map(({ room, invitedBy, createdAt }) => (
-          <li key={room._id} className={styles.invitation}>
-            <div className={styles.roomMain}>
-              <span className={styles.roomName}>{room.name}</span>
-              <span className={styles.roomMeta}>
+          <li key={room._id} className="rooms-invitation">
+            <div className="rooms-room-main">
+              <span className="rooms-room-name">{room.name}</span>
+              <span className="rooms-room-meta">
                 <SubjectTag subject={room.subject} size="sm" fallback={null} />
                 <span>
-                  {invitedBy.name} te invitó {formatAgo(createdAt)}, {plural(room.memberCount, 'participante', 'participantes')}
+                  {invitedBy.name} te invitó {formatAgo(createdAt)},{" "}
+                  {plural(room.memberCount, "participante", "participantes")}
                 </span>
               </span>
             </div>
-            <div className={styles.rowActions}>
+            <div className="rooms-row-actions">
               <Button
                 size="sm"
                 loading={accept.isPending && accept.variables === room._id}
-                onClick={() => accept.mutate(room._id, { onSuccess: () => navigate(`/salas/${room._id}`) })}
+                onClick={() =>
+                  accept.mutate(room._id, {
+                    onSuccess: () => navigate(`/salas/${room._id}`),
+                  })
+                }
               >
                 Unirme
               </Button>
-              <Button size="sm" variant="secondary" onClick={() => decline.mutate(room._id)}>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => decline.mutate(room._id)}
+              >
                 Rechazar
               </Button>
             </div>
@@ -57,8 +78,9 @@ export default function RoomsPage() {
   const rooms = useRooms();
   const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
-  const creating = params.get('nueva') === '1';
-  const setCreating = (open) => setParams(open ? { nueva: '1' } : {}, { replace: true });
+  const creating = params.get("nueva") === "1";
+  const setCreating = (open) =>
+    setParams(open ? { nueva: "1" } : {}, { replace: true });
 
   return (
     <Page title="Salas">
@@ -74,7 +96,7 @@ export default function RoomsPage() {
 
       <Invitations />
 
-      <Section title={rooms.data?.length ? 'Tus salas' : null} id="rooms-list">
+      <Section title={rooms.data?.length ? "Tus salas" : null} id="rooms-list">
         {rooms.isPending ? (
           <SkeletonList rows={3} label="Cargando salas" />
         ) : rooms.isError ? (
@@ -89,23 +111,38 @@ export default function RoomsPage() {
               </Button>
             }
           >
-            Crea una sala para preparar un examen o un trabajo en grupo e invita a tus amigos.
+            Crea una sala para preparar un examen o un trabajo en grupo e invita
+            a tus amigos.
           </EmptyState>
         ) : (
-          <ul className={styles.list}>
+          <ul className="rooms-list">
             {rooms.data.map((room) => (
               <li key={room._id}>
-                <Link to={`/salas/${room._id}`} className={styles.roomRow}>
-                  <div className={styles.roomMain}>
-                    <span className={styles.roomName}>{room.name}</span>
-                    <span className={styles.roomMeta}>
-                      <SubjectTag subject={room.subject} size="sm" fallback={null} />
-                      {room.scheduledAt ? <span>Sesión: {formatDateTime(room.scheduledAt)}</span> : null}
+                <Link to={`/salas/${room._id}`} className="rooms-room-row">
+                  <div className="rooms-room-main">
+                    <span className="rooms-room-name">{room.name}</span>
+                    <span className="rooms-room-meta">
+                      <SubjectTag
+                        subject={room.subject}
+                        size="sm"
+                        fallback={null}
+                      />
+                      {room.scheduledAt ? (
+                        <span>Sesión: {formatDateTime(room.scheduledAt)}</span>
+                      ) : null}
                     </span>
-                    {room.description ? <span className={styles.roomDescription}>{room.description}</span> : null}
+                    {room.description ? (
+                      <span className="rooms-room-description">
+                        {room.description}
+                      </span>
+                    ) : null}
                   </div>
-                  <AvatarStack users={room.members} max={4} total={room.memberCount} />
-                  <dl className={styles.roomStats}>
+                  <AvatarStack
+                    users={room.members}
+                    max={4}
+                    total={room.memberCount}
+                  />
+                  <dl className="rooms-room-stats">
                     <div>
                       <dt>Tareas abiertas</dt>
                       <dd>{room.openTasks}</dd>
@@ -119,7 +156,9 @@ export default function RoomsPage() {
                       <dd>{room.stats.files}</dd>
                     </div>
                   </dl>
-                  <span className={styles.activity}>Activa {formatAgo(room.lastActivityAt)}</span>
+                  <span className="rooms-activity">
+                    Activa {formatAgo(room.lastActivityAt)}
+                  </span>
                 </Link>
               </li>
             ))}
@@ -128,7 +167,12 @@ export default function RoomsPage() {
       </Section>
 
       <Modal open={creating} onOpenChange={setCreating} title="Nueva sala">
-        {creating ? <RoomForm onDone={(room) => navigate(`/salas/${room._id}`)} onCancel={() => setCreating(false)} /> : null}
+        {creating ? (
+          <RoomForm
+            onDone={(room) => navigate(`/salas/${room._id}`)}
+            onCancel={() => setCreating(false)}
+          />
+        ) : null}
       </Modal>
     </Page>
   );

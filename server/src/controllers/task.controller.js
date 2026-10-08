@@ -1,4 +1,4 @@
-import * as taskService from '../services/task.service.js';
+import * as taskService from "../services/task.service.js";
 
 export async function list(req, res) {
   res.json(await taskService.listTasks(req.user, req.valid.query));
@@ -9,7 +9,9 @@ export async function summary(req, res) {
 }
 
 export async function get(req, res) {
-  res.json({ task: await taskService.getTask(req.user._id, req.valid.params.taskId) });
+  res.json({
+    task: await taskService.getTask(req.user._id, req.valid.params.taskId),
+  });
 }
 
 export async function create(req, res) {
@@ -18,12 +20,20 @@ export async function create(req, res) {
 }
 
 export async function update(req, res) {
-  const task = await taskService.updateTask(req.user, req.valid.params.taskId, req.valid.body);
+  const task = await taskService.updateTask(
+    req.user,
+    req.valid.params.taskId,
+    req.valid.body,
+  );
   res.json({ task });
 }
 
 export async function complete(req, res) {
-  const task = await taskService.completeTask(req.user, req.valid.params.taskId, req.valid.body);
+  const task = await taskService.completeTask(
+    req.user,
+    req.valid.params.taskId,
+    req.valid.body,
+  );
   res.json({ task });
 }
 

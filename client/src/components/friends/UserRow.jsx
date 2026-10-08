@@ -1,23 +1,24 @@
-import { Link } from 'react-router-dom';
-import { academicLine } from '../../utils/users.js';
-import { Avatar } from '../ui/Avatar.jsx';
-import styles from './Friends.module.css';
+import { Link } from "react-router-dom";
+import { academicLine } from "../../utils/users.js";
+import { Avatar } from "../ui/Avatar.jsx";
 
 export function UserRow({ user, children, meta }) {
   return (
-    <li className={styles.row}>
-      <Link to={`/u/${user.handle}`} className={styles.identity}>
+    <li className="friends-row">
+      <Link to={`/u/${user.handle}`} className="friends-identity">
         <Avatar user={user} size="md" />
-        <span className={styles.text}>
-          <span className={styles.name}>{user.name}</span>
-          <span className={styles.handle}>
+        <span className="friends-text">
+          <span className="friends-name">{user.name}</span>
+          <span className="friends-handle">
             @{user.handle}
-            {academicLine(user) ? <span className={styles.academic}>{academicLine(user)}</span> : null}
+            {academicLine(user) ? (
+              <span className="friends-academic">{academicLine(user)}</span>
+            ) : null}
           </span>
-          {meta ? <span className={styles.meta}>{meta}</span> : null}
+          {meta ? <span className="friends-meta">{meta}</span> : null}
         </span>
       </Link>
-      {children ? <div className={styles.actions}>{children}</div> : null}
+      {children ? <div className="friends-actions">{children}</div> : null}
     </li>
   );
 }

@@ -1,25 +1,25 @@
-import { lazy } from 'react';
-import { Route, Routes } from 'react-router-dom';
-import { AppLayout } from './layouts/AppLayout.jsx';
-import { AuthLayout } from './layouts/AuthLayout.jsx';
-import { GuestOnly, RequireAuth } from './layouts/RouteGuards.jsx';
-import LoginPage from './pages/LoginPage.jsx';
-import RegisterPage from './pages/RegisterPage.jsx';
+import { lazy } from "react";
+import { Route, Routes } from "react-router-dom";
+import { AppLayout } from "./layouts/AppLayout.jsx";
+import { AuthLayout } from "./layouts/AuthLayout.jsx";
+import { GuestOnly, RequireAuth } from "./layouts/RouteGuards.jsx";
+import LoginPage from "./pages/LoginPage.jsx";
+import RegisterPage from "./pages/RegisterPage.jsx";
 
 // Las páginas privadas se cargan bajo demanda para que la primera carga sea ligera.
-const DashboardPage = lazy(() => import('./pages/DashboardPage.jsx'));
-const TasksPage = lazy(() => import('./pages/TasksPage.jsx'));
-const CalendarPage = lazy(() => import('./pages/CalendarPage.jsx'));
-const SubjectsPage = lazy(() => import('./pages/SubjectsPage.jsx'));
-const GradesPage = lazy(() => import('./pages/GradesPage.jsx'));
-const FriendsPage = lazy(() => import('./pages/FriendsPage.jsx'));
-const UserProfilePage = lazy(() => import('./pages/UserProfilePage.jsx'));
-const RoomsPage = lazy(() => import('./pages/RoomsPage.jsx'));
-const RoomPage = lazy(() => import('./pages/RoomPage.jsx'));
-const PomodoroPage = lazy(() => import('./pages/PomodoroPage.jsx'));
-const NotificationsPage = lazy(() => import('./pages/NotificationsPage.jsx'));
-const ProfilePage = lazy(() => import('./pages/ProfilePage.jsx'));
-const NotFoundPage = lazy(() => import('./pages/NotFoundPage.jsx'));
+const DashboardPage = lazy(() => import("./pages/DashboardPage.jsx"));
+const TasksPage = lazy(() => import("./pages/TasksPage.jsx"));
+const CalendarPage = lazy(() => import("./pages/CalendarPage.jsx"));
+const SubjectsPage = lazy(() => import("./pages/SubjectsPage.jsx"));
+const GradesPage = lazy(() => import("./pages/GradesPage.jsx"));
+const FriendsPage = lazy(() => import("./pages/FriendsPage.jsx"));
+const UserProfilePage = lazy(() => import("./pages/UserProfilePage.jsx"));
+const RoomsPage = lazy(() => import("./pages/RoomsPage.jsx"));
+const RoomPage = lazy(() => import("./pages/RoomPage.jsx"));
+const PomodoroPage = lazy(() => import("./pages/PomodoroPage.jsx"));
+const NotificationsPage = lazy(() => import("./pages/NotificationsPage.jsx"));
+const ProfilePage = lazy(() => import("./pages/ProfilePage.jsx"));
+const NotFoundPage = lazy(() => import("./pages/NotFoundPage.jsx"));
 
 export function AppRoutes() {
   return (

@@ -1,21 +1,34 @@
-import { create } from 'zustand';
-import { createJSONStorage, persist } from 'zustand/middleware';
-import { dayKey } from '../utils/dates.js';
+import { create } from "zustand";
+import { createJSONStorage, persist } from "zustand/middleware";
+import { dayKey } from "../utils/dates.js";
 
-export const DEFAULT_SETTINGS = { focusMinutes: 25, breakMinutes: 5, longBreakMinutes: 15, cyclesBeforeLongBreak: 4 };
+export const DEFAULT_SETTINGS = {
+  focusMinutes: 25,
+  breakMinutes: 5,
+  longBreakMinutes: 15,
+  cyclesBeforeLongBreak: 4,
+};
 const MIN_LOGGABLE_MS = 60 * 1000;
 
-export const PHASE_LABEL = { focus: 'Concentración', break: 'Descanso', longBreak: 'Descanso largo' };
+export const PHASE_LABEL = {
+  focus: "Concentración",
+  break: "Descanso",
+  longBreak: "Descanso largo",
+};
 
 export const phaseDurationMs = (phase, settings) => {
-  const minutes = { focus: settings.focusMinutes, break: settings.breakMinutes, longBreak: settings.longBreakMinutes }[phase];
+  const minutes = {
+    focus: settings.focusMinutes,
+    break: settings.breakMinutes,
+    longBreak: settings.longBreakMinutes,
+  }[phase];
   return minutes * 60 * 1000;
 };
 
 function idleState(phase, settings, completedFocus) {
   return {
     phase,
-    status: 'idle',
+    status: "idle",
     endsAt: null,
     remainingMs: phaseDurationMs(phase, settings),
     phaseStartedAt: null,
@@ -27,30 +40,41 @@ function idleState(phase, settings, completedFocus) {
 
 // Sesión lista para registrar en la API (o null si fue demasiado corta).
 function sessionRecord(state, now, completed) {
-  const activeMs = state.elapsedMs + (state.runStartedAt ? now - state.runStartedAt : 0);
-  if (!state.phaseStartedAt || (!completed && activeMs < MIN_LOGGABLE_MS)) return null;
+  const activeMs =
+    state.elapsedMs + (state.runStartedAt ? now - state.runStartedAt : 0);
+  if (!state.phaseStartedAt || (!completed && activeMs < MIN_LOGGABLE_MS))
+    return null;
 
   const plannedMs = phaseDurationMs(state.phase, state.settings);
   return {
     day: dayKey(new Date(state.phaseStartedAt)),
-    phase: state.phase === 'focus' ? 'focus' : 'break',
+    phase: state.phase === "focus" ? "focus" : "break",
     plannedSeconds: Math.round(plannedMs / 1000),
-    actualSeconds: Math.round(Math.min(completed ? plannedMs : activeMs, plannedMs) / 1000),
+    actualSeconds: Math.round(
+      Math.min(completed ? plannedMs : activeMs, plannedMs) / 1000,
+    ),
     completed,
     startedAt: new Date(state.phaseStartedAt).toISOString(),
-    endedAt: new Date(completed && state.endsAt ? Math.min(state.endsAt, now) : now).toISOString(),
+    endedAt: new Date(
+      completed && state.endsAt ? Math.min(state.endsAt, now) : now,
+    ).toISOString(),
     subjectId: state.subjectId ?? null,
   };
 }
 
 function nextPhase(state, focusFinished) {
-  if (state.phase !== 'focus') {
+  if (state.phase !== "focus") {
     // Tras el descanso largo empieza un ciclo nuevo.
-    return { phase: 'focus', completedFocus: state.phase === 'longBreak' ? 0 : state.completedFocus };
+    return {
+      phase: "focus",
+      completedFocus: state.phase === "longBreak" ? 0 : state.completedFocus,
+    };
   }
   const completedFocus = state.completedFocus + (focusFinished ? 1 : 0);
-  const longBreak = completedFocus > 0 && completedFocus % state.settings.cyclesBeforeLongBreak === 0;
-  return { phase: longBreak ? 'longBreak' : 'break', completedFocus };
+  const longBreak =
+    completedFocus > 0 &&
+    completedFocus % state.settings.cyclesBeforeLongBreak === 0;
+  return { phase: longBreak ? "longBreak" : "break", completedFocus };
 }
 
 // El temporizador vive aquí (y en localStorage) para seguir en marcha al cambiar de página o recargar.
@@ -60,21 +84,26 @@ export const usePomodoroStore = create(
     (set, get) => ({
       settings: DEFAULT_SETTINGS,
       subjectId: null,
-      ...idleState('focus', DEFAULT_SETTINGS, 0),
+      ...idleState("focus", DEFAULT_SETTINGS, 0),
 
       syncSettings: (settings) => {
         const state = get();
-        set({ settings, ...(state.status === 'idle' ? { remainingMs: phaseDurationMs(state.phase, settings) } : {}) });
+        set({
+          settings,
+          ...(state.status === "idle"
+            ? { remainingMs: phaseDurationMs(state.phase, settings) }
+            : {}),
+        });
       },
 
       setSubject: (subjectId) => set({ subjectId }),
 
       start: () => {
         const state = get();
-        if (state.status === 'running') return;
+        if (state.status === "running") return;
         const now = Date.now();
         set({
-          status: 'running',
+          status: "running",
           runStartedAt: now,
           endsAt: now + state.remainingMs,
           phaseStartedAt: state.phaseStartedAt ?? now,
@@ -83,10 +112,10 @@ export const usePomodoroStore = create(
 
       pause: () => {
         const state = get();
-        if (state.status !== 'running') return;
+        if (state.status !== "running") return;
         const now = Date.now();
         set({
-          status: 'paused',
+          status: "paused",
           elapsedMs: state.elapsedMs + (now - state.runStartedAt),
           remainingMs: Math.max(0, state.endsAt - now),
           runStartedAt: null,
@@ -104,7 +133,7 @@ export const usePomodoroStore = create(
       stop: () => {
         const state = get();
         const record = sessionRecord(state, Date.now(), false);
-        set(idleState('focus', state.settings, 0));
+        set(idleState("focus", state.settings, 0));
         return record;
       },
 
@@ -127,16 +156,28 @@ export const usePomodoroStore = create(
       },
 
       // Al cerrar sesión: el temporizador no debe pasar a otra cuenta en el mismo navegador.
-      clear: () => set({ settings: DEFAULT_SETTINGS, subjectId: null, ...idleState('focus', DEFAULT_SETTINGS, 0) }),
+      clear: () =>
+        set({
+          settings: DEFAULT_SETTINGS,
+          subjectId: null,
+          ...idleState("focus", DEFAULT_SETTINGS, 0),
+        }),
     }),
     {
-      name: 'sp-pomodoro',
+      name: "sp-pomodoro",
       storage: createJSONStorage(() => localStorage),
-      partialize: (state) => Object.fromEntries(Object.entries(state).filter(([, value]) => typeof value !== 'function')),
+      partialize: (state) =>
+        Object.fromEntries(
+          Object.entries(state).filter(
+            ([, value]) => typeof value !== "function",
+          ),
+        ),
     },
   ),
 );
 
 export function remainingMsAt(state, now = Date.now()) {
-  return state.status === 'running' ? Math.max(0, state.endsAt - now) : state.remainingMs;
+  return state.status === "running"
+    ? Math.max(0, state.endsAt - now)
+    : state.remainingMs;
 }

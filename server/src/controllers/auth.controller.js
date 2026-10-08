@@ -1,7 +1,7 @@
-import { clearSessionCookie, setSessionCookie } from '../auth/cookies.js';
-import { signSessionToken } from '../auth/tokens.js';
-import { serializeSelf } from '../serializers/user.serializer.js';
-import * as authService from '../services/auth.service.js';
+import { clearSessionCookie, setSessionCookie } from "../auth/cookies.js";
+import { signSessionToken } from "../auth/tokens.js";
+import { serializeSelf } from "../serializers/user.serializer.js";
+import * as authService from "../services/auth.service.js";
 
 function startSession(res, user) {
   setSessionCookie(res, signSessionToken(user));

@@ -1,18 +1,22 @@
-import clsx from 'clsx';
-import { TaskRow } from './TaskRow.jsx';
-import styles from './Tasks.module.css';
+import clsx from "clsx";
+import { TaskRow } from "./TaskRow.jsx";
 
 // Lista de tareas agrupada por tramos ("Atrasadas", "Hoy", "Esta semana"…).
 export function TaskGroups({ groups, now }) {
   return (
-    <div className={styles.groups}>
+    <div className="tasks-groups">
       {groups.map((group) => (
-        <section key={group.key} className={styles.group} aria-label={group.label}>
-          <h2 className={clsx(styles.groupTitle, group.key === 'overdue' && styles.groupOverdue)}>
+        <section key={group.key} aria-label={group.label}>
+          <h2
+            className={clsx(
+              "tasks-group-title",
+              group.key === "overdue" && "tasks-group-overdue",
+            )}
+          >
             {group.label}
-            <span className={styles.groupCount}>{group.items.length}</span>
+            <span className="tasks-group-count">{group.items.length}</span>
           </h2>
-          <ul className={styles.list}>
+          <ul className="tasks-list">
             {group.items.map((task) => (
               <TaskRow key={task._id} task={task} now={now} />
             ))}
@@ -25,7 +29,7 @@ export function TaskGroups({ groups, now }) {
 
 export function TaskList({ tasks, now, compact = false }) {
   return (
-    <ul className={styles.list}>
+    <ul className="tasks-list">
       {tasks.map((task) => (
         <TaskRow key={task._id} task={task} now={now} compact={compact} />
       ))}

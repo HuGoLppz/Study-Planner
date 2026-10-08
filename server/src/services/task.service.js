@@ -1,170 +1,247 @@
-import { Task } from '../models/Task.js';
-import { ApiError } from '../utils/ApiError.js';
-import { toObjectId } from '../utils/ids.js';
-import { escapeRegex } from '../utils/text.js';
-
-const PRIORITY_WEIGHT = { high: 0, medium: 1, low: 2 };
+import { iso, nowIso, sql, transaction } from "../database/db.js";
+import { TASK_SELECT, toTask } from "../models/task.model.js";
+import { ApiError } from "../utils/ApiError.js";
+import { sameId } from "../utils/ids.js";
+import { escapeLike, normalizeText } from "../utils/text.js";
+import { invalidateAcademic } from "./academicCache.js";
 
 const SORTS = {
-  due: { dueDate: 1, _id: 1 },
-  '-due': { dueDate: -1, _id: -1 },
-  created: { createdAt: 1 },
-  '-created': { createdAt: -1 },
-  completed: { completedAt: -1, dueDate: -1 },
+  due: "t.fecha_entrega ASC, t.tarea_id ASC",
+  "-due": "t.fecha_entrega DESC, t.tarea_id DESC",
+  created: "t.fecha_creacion ASC, t.tarea_id ASC",
+  "-created": "t.fecha_creacion DESC, t.tarea_id DESC",
+  completed: "t.fecha_completada DESC NULLS LAST, t.fecha_entrega DESC",
+  priority:
+    "CASE t.urgencia WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END, t.fecha_entrega ASC",
 };
 
-export const overdueFilter = (now = new Date()) => ({ status: { $ne: 'completed' }, dueDate: { $lt: now } });
+// "Atrasada" no se guarda: se calcula con la hora de la petición.
+export const OVERDUE_SQL = "t.estado <> 'completed' AND t.fecha_entrega < @now";
 
-// Una asignatura solo puede usarse si pertenece al propietario de la tarea.
+const NOT_FOUND = "Esta tarea no existe o se ha eliminado";
+
+// Una asignatura solo puede usarse si pertenece al propietario de la tarea (la base de datos
+// también lo comprueba con un trigger; aquí se valida antes para responder con un 422 claro).
 export function assertOwnSubject(user, subjectId) {
-  if (subjectId && !user.subjects.id(subjectId)) {
-    throw ApiError.unprocessable('La asignatura no existe', { subjectId: 'Elige una de tus asignaturas' });
+  if (
+    subjectId &&
+    !user.subjects.some((subject) => sameId(subject._id, subjectId))
+  ) {
+    throw ApiError.unprocessable("La asignatura no existe", {
+      subjectId: "Elige una de tus asignaturas",
+    });
   }
 }
 
-function buildFilter(userId, query, now) {
-  const filter = { owner: userId };
+function buildWhere(userId, query, now) {
+  const where = ["t.usuario_id = @userId"];
+  const params = { userId, now: iso(now) };
 
-  if (query.status === 'pending') filter.status = { $ne: 'completed' };
-  if (query.status === 'completed') filter.status = 'completed';
-  if (query.status === 'overdue') Object.assign(filter, overdueFilter(now));
+  if (query.status === "pending") where.push("t.estado <> 'completed'");
+  if (query.status === "completed") where.push("t.estado = 'completed'");
+  if (query.status === "overdue") where.push(OVERDUE_SQL);
 
-  // Los ids se convierten aquí porque aggregate() no aplica el casting de Mongoose.
-  if (query.subject === 'none') filter.subject = null;
-  else if (query.subject) filter.subject = toObjectId(query.subject);
-  if (query.type) filter.type = query.type;
-  if (query.priority) filter.priority = query.priority;
-
-  if (query.from || query.to) {
-    filter.dueDate = { ...(filter.dueDate ?? {}) };
-    if (query.from) filter.dueDate.$gte = query.from;
-    if (query.to) filter.dueDate.$lte = query.to;
+  if (query.subject === "none") where.push("t.asignatura_id IS NULL");
+  else if (query.subject) {
+    where.push("t.asignatura_id = @subject");
+    params.subject = query.subject;
   }
-
+  if (query.type) {
+    where.push("t.tipo_actividad = @type");
+    params.type = query.type;
+  }
+  if (query.priority) {
+    where.push("t.urgencia = @priority");
+    params.priority = query.priority;
+  }
+  if (query.from) {
+    where.push("t.fecha_entrega >= @from");
+    params.from = iso(query.from);
+  }
+  if (query.to) {
+    where.push("t.fecha_entrega <= @to");
+    params.to = iso(query.to);
+  }
   if (query.q) {
-    const pattern = new RegExp(escapeRegex(query.q), 'i');
-    filter.$or = [{ title: pattern }, { description: pattern }];
+    // Sin distinguir mayúsculas ni tildes: "calculo" encuentra "Cálculo".
+    where.push(
+      "(normalizar(t.titulo) LIKE @q ESCAPE '\\' OR normalizar(t.descripcion) LIKE @q ESCAPE '\\')",
+    );
+    params.q = `%${escapeLike(normalizeText(query.q))}%`;
   }
-  return filter;
+  return { where: where.join(" AND "), params };
 }
 
 export async function listTasks(user, query, now = new Date()) {
-  const filter = buildFilter(user._id, query, now);
-  const skip = (query.page - 1) * query.limit;
+  const { where, params } = buildWhere(user._id, query, now);
+  const offset = (query.page - 1) * query.limit;
 
-  let items;
-  if (query.sort === 'priority') {
-    // La urgencia es un enum: se ordena por su peso con una agregación.
-    items = await Task.aggregate([
-      { $match: filter },
-      { $addFields: { priorityWeight: { $switch: {
-        branches: Object.entries(PRIORITY_WEIGHT).map(([value, weight]) => ({ case: { $eq: ['$priority', value] }, then: weight })),
-        default: 3,
-      } } } },
-      { $sort: { priorityWeight: 1, dueDate: 1 } },
-      { $skip: skip },
-      { $limit: query.limit },
-      { $project: { priorityWeight: 0, reminderSentAt: 0, __v: 0 } },
-    ]);
-  } else {
-    items = await Task.find(filter).sort(SORTS[query.sort]).skip(skip).limit(query.limit);
-  }
-
-  const total = await Task.countDocuments(filter);
-  return { items, total, page: query.page, hasMore: skip + items.length < total };
-}
-
-export async function summarizeTasks(userId, now = new Date()) {
-  const [summary] = await Task.aggregate([
-    { $match: { owner: userId } },
-    {
-      $group: {
-        _id: null,
-        total: { $sum: 1 },
-        completed: { $sum: { $cond: [{ $eq: ['$status', 'completed'] }, 1, 0] } },
-        inProgress: { $sum: { $cond: [{ $eq: ['$status', 'in_progress'] }, 1, 0] } },
-        overdue: {
-          $sum: { $cond: [{ $and: [{ $ne: ['$status', 'completed'] }, { $lt: ['$dueDate', now] }] }, 1, 0] },
-        },
-      },
-    },
+  const [rows, count] = await Promise.all([
+    sql(
+      `${TASK_SELECT} WHERE ${where} ORDER BY ${SORTS[query.sort]} LIMIT @limit OFFSET @offset`,
+    ).all({
+      ...params,
+      limit: query.limit,
+      offset,
+    }),
+    sql(`SELECT COUNT(*) AS total FROM Tareas t WHERE ${where}`).get(params),
   ]);
-
-  const base = summary ?? { total: 0, completed: 0, inProgress: 0, overdue: 0 };
+  const items = rows.map(toTask);
   return {
-    total: base.total,
-    completed: base.completed,
-    inProgress: base.inProgress,
-    overdue: base.overdue,
-    pending: base.total - base.completed,
+    items,
+    total: count.total,
+    page: query.page,
+    hasMore: offset + items.length < count.total,
   };
 }
 
-export async function getTask(userId, taskId) {
-  const task = await Task.findOne({ _id: taskId, owner: userId });
-  if (!task) throw ApiError.notFound('Esta tarea no existe o se ha eliminado', 'TASK_NOT_FOUND');
-  return task;
+// Pendientes que vencen dentro del rango (horizonte del dashboard).
+export async function listUpcoming(userId, { from, to, limit }) {
+  const rows = await sql(
+    `${TASK_SELECT} WHERE t.usuario_id = @userId AND t.estado <> 'completed'
+       AND t.fecha_entrega BETWEEN @from AND @to ORDER BY t.fecha_entrega LIMIT @limit`,
+  ).all({ userId, from: iso(from), to: iso(to), limit });
+  return rows.map(toTask);
 }
 
-function applyStatus(task, status, now = new Date()) {
-  if (status === task.status) return;
-  task.status = status;
-  if (status === 'completed') {
-    task.completedAt = now;
-  } else {
-    task.completedAt = null;
-    task.grade = undefined;
-  }
+export async function listOverdue(userId, { now = new Date(), limit }) {
+  const rows = await sql(
+    `${TASK_SELECT} WHERE t.usuario_id = @userId AND ${OVERDUE_SQL} ORDER BY t.fecha_entrega LIMIT @limit`,
+  ).all({
+    userId,
+    now: iso(now),
+    limit,
+  });
+  return rows.map(toTask);
 }
+
+export async function summarizeTasks(userId, now = new Date()) {
+  const row = await sql(
+    `SELECT COUNT(*) AS total,
+            COUNT(*) FILTER (WHERE t.estado = 'completed') AS completed,
+            COUNT(*) FILTER (WHERE t.estado = 'in_progress') AS "inProgress",
+            COUNT(*) FILTER (WHERE ${OVERDUE_SQL}) AS overdue
+       FROM Tareas t WHERE t.usuario_id = @userId`,
+  ).get({ userId, now: iso(now) });
+
+  return { ...row, pending: row.total - row.completed };
+}
+
+export async function getTask(userId, taskId) {
+  const row = await sql(
+    `${TASK_SELECT} WHERE t.tarea_id = ? AND t.usuario_id = ?`,
+  ).get(taskId, userId);
+  if (!row) throw ApiError.notFound(NOT_FOUND, "TASK_NOT_FOUND");
+  return toTask(row);
+}
+
+// Al cambiar de estado se fija o se borra la fecha de completado. Reabrir una tarea borra su
+// nota (trigger tr_tareas_reabrir_borra_nota).
+const completedAtFor = (status) => (status === "completed" ? nowIso() : null);
+
+// La caché de estadísticas se invalida siempre DESPUÉS de confirmar la escritura: si se hiciera
+// antes, una petición simultánea podría volver a guardar los datos de antes del cambio.
 
 export async function createTask(user, data) {
   assertOwnSubject(user, data.subjectId);
-  const { subjectId, status, ...rest } = data;
 
-  const task = new Task({ ...rest, owner: user._id, subject: subjectId });
-  applyStatus(task, status);
-  return task.save();
+  const { lastInsertRowid } = await sql(
+    `INSERT INTO Tareas (usuario_id, asignatura_id, titulo, descripcion, tipo_actividad, urgencia, estado,
+                         fecha_entrega, fecha_completada)
+     VALUES (@userId, @subjectId, @title, @description, @type, @priority, @status, @dueDate, @completedAt)
+     RETURNING tarea_id`,
+  ).run({
+    userId: user._id,
+    subjectId: data.subjectId,
+    title: data.title,
+    description: data.description,
+    type: data.type,
+    priority: data.priority,
+    status: data.status,
+    dueDate: iso(data.dueDate),
+    completedAt: completedAtFor(data.status),
+  });
+  invalidateAcademic(user._id);
+  return getTask(user._id, lastInsertRowid);
 }
+
+const UPDATABLE = {
+  title: "titulo",
+  description: "descripcion",
+  type: "tipo_actividad",
+  priority: "urgencia",
+};
 
 export async function updateTask(user, taskId, data) {
   const task = await getTask(user._id, taskId);
-  const { subjectId, status, dueDate, ...rest } = data;
+  const set = { fecha_actualizacion: nowIso() };
 
-  if (subjectId !== undefined) {
-    assertOwnSubject(user, subjectId);
-    task.subject = subjectId;
+  for (const [field, column] of Object.entries(UPDATABLE)) {
+    if (data[field] !== undefined) set[column] = data[field];
   }
-  if (dueDate && dueDate.getTime() !== task.dueDate.getTime()) {
-    task.dueDate = dueDate;
-    task.reminderSentAt = null;
+  if (data.subjectId !== undefined) {
+    assertOwnSubject(user, data.subjectId);
+    set.asignatura_id = data.subjectId;
   }
-  if (status) applyStatus(task, status);
-  task.set(rest);
+  if (data.dueDate && iso(data.dueDate) !== task.dueDate) {
+    set.fecha_entrega = iso(data.dueDate);
+    set.recordatorio_enviado = null; // vuelve a avisar con la nueva fecha
+  }
+  if (data.status && data.status !== task.status) {
+    set.estado = data.status;
+    set.fecha_completada = completedAtFor(data.status);
+  }
 
-  return task.save();
+  const assignments = Object.keys(set)
+    .map((column) => `${column} = @${column}`)
+    .join(", ");
+  await sql(
+    `UPDATE Tareas SET ${assignments} WHERE tarea_id = @taskId AND usuario_id = @userId`,
+  ).run({
+    ...set,
+    taskId,
+    userId: user._id,
+  });
+  invalidateAcademic(user._id);
+  return getTask(user._id, taskId);
+}
+
+// Cambia el estado si hace falta. Devuelve si ha cambiado (quien llama invalida la caché).
+async function setStatus(userId, taskId, status) {
+  const task = await getTask(userId, taskId);
+  if (task.status === status) return false;
+  await sql(
+    "UPDATE Tareas SET estado = ?, fecha_completada = ?, fecha_actualizacion = ? WHERE tarea_id = ?",
+  ).run(status, completedAtFor(status), nowIso(), taskId);
+  return true;
+}
+
+export async function saveGrade(taskId, score) {
+  await sql(
+    `INSERT INTO Calificaciones (tarea_id, calificacion, fecha_registro) VALUES (?, ?, ?)
+     ON CONFLICT (tarea_id) DO UPDATE SET calificacion = excluded.calificacion, fecha_registro = excluded.fecha_registro`,
+  ).run(taskId, score, nowIso());
 }
 
 export async function completeTask(user, taskId, { score } = {}) {
-  const task = await getTask(user._id, taskId);
-  const now = new Date();
-
-  applyStatus(task, 'completed', now);
-  if (score !== undefined && score !== null) task.grade = { score, gradedAt: now };
-  return task.save();
+  await transaction(async () => {
+    await setStatus(user._id, taskId, "completed");
+    if (score !== undefined && score !== null) await saveGrade(taskId, score);
+  });
+  invalidateAcademic(user._id);
+  return getTask(user._id, taskId);
 }
 
 export async function reopenTask(user, taskId) {
-  const task = await getTask(user._id, taskId);
-  applyStatus(task, 'pending');
-  return task.save();
+  if (await setStatus(user._id, taskId, "pending"))
+    invalidateAcademic(user._id);
+  return getTask(user._id, taskId);
 }
 
 export async function deleteTask(userId, taskId) {
-  const result = await Task.deleteOne({ _id: taskId, owner: userId });
-  if (result.deletedCount === 0) throw ApiError.notFound('Esta tarea no existe o se ha eliminado', 'TASK_NOT_FOUND');
-}
-
-// Al borrar una asignatura, sus tareas se quedan sin asignatura en lugar de desaparecer.
-export function detachSubject(userId, subjectId) {
-  return Task.updateMany({ owner: userId, subject: subjectId }, { $set: { subject: null } });
+  const { changes } = await sql(
+    "DELETE FROM Tareas WHERE tarea_id = ? AND usuario_id = ?",
+  ).run(taskId, userId);
+  if (changes === 0) throw ApiError.notFound(NOT_FOUND, "TASK_NOT_FOUND");
+  invalidateAcademic(userId);
 }

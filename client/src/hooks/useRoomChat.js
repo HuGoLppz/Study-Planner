@@ -1,11 +1,16 @@
-import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { toast } from 'sonner';
-import { messagesApi } from '../services/api.js';
-import { connectSocket } from '../services/socket.js';
-import { getErrorMessage } from '../utils/errors.js';
-import { qk } from './queryKeys.js';
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQueryClient,
+} from "@tanstack/react-query";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
+import { messagesApi } from "../services/api.js";
+import { connectSocket } from "../services/socket.js";
+import { getErrorMessage } from "../utils/errors.js";
+import { applyRoomPatch } from "../utils/rooms.js";
+import { qk } from "./queryKeys.js";
 
 const TYPING_TIMEOUT = 3500;
 
@@ -20,7 +25,10 @@ export function useRoomMessages(roomId) {
   });
 
   const messages = useMemo(
-    () => (query.data ? [...query.data.pages].reverse().flatMap((page) => page.items) : []),
+    () =>
+      query.data
+        ? [...query.data.pages].reverse().flatMap((page) => page.items)
+        : [],
     [query.data],
   );
   return { ...query, messages };
@@ -28,36 +36,60 @@ export function useRoomMessages(roomId) {
 
 function upsertMessage(data, message) {
   if (!data) return data;
-  const exists = data.pages.some((page) => page.items.some((item) => item._id === message._id));
+  const exists = data.pages.some((page) =>
+    page.items.some((item) => item._id === message._id),
+  );
   if (exists) {
     return {
       ...data,
-      pages: data.pages.map((page) => ({ ...page, items: page.items.map((item) => (item._id === message._id ? message : item)) })),
+      pages: data.pages.map((page) => ({
+        ...page,
+        items: page.items.map((item) =>
+          item._id === message._id ? message : item,
+        ),
+      })),
     };
   }
   const [newest, ...rest] = data.pages;
-  return { ...data, pages: [{ ...newest, items: [...newest.items, message] }, ...rest] };
+  return {
+    ...data,
+    pages: [{ ...newest, items: [...newest.items, message] }, ...rest],
+  };
 }
 
 function dropMessage(data, messageId) {
   if (!data) return data;
-  return { ...data, pages: data.pages.map((page) => ({ ...page, items: page.items.filter((item) => item._id !== messageId) })) };
+  return {
+    ...data,
+    pages: data.pages.map((page) => ({
+      ...page,
+      items: page.items.filter((item) => item._id !== messageId),
+    })),
+  };
 }
 
 export function useSendMessage(roomId) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (body) => messagesApi.send(roomId, body),
-    onSuccess: (message) => queryClient.setQueryData(qk.rooms.messages(roomId), (data) => upsertMessage(data, message)),
-    onError: (error) => toast.error(getErrorMessage(error, 'No se ha podido enviar el mensaje')),
+    onSuccess: (message) =>
+      queryClient.setQueryData(qk.rooms.messages(roomId), (data) =>
+        upsertMessage(data, message),
+      ),
+    onError: (error) =>
+      toast.error(getErrorMessage(error, "No se ha podido enviar el mensaje")),
   });
 }
 
 export function useEditMessage(roomId) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ messageId, body }) => messagesApi.update(roomId, messageId, body),
-    onSuccess: (message) => queryClient.setQueryData(qk.rooms.messages(roomId), (data) => upsertMessage(data, message)),
+    mutationFn: ({ messageId, body }) =>
+      messagesApi.update(roomId, messageId, body),
+    onSuccess: (message) =>
+      queryClient.setQueryData(qk.rooms.messages(roomId), (data) =>
+        upsertMessage(data, message),
+      ),
     onError: (error) => toast.error(getErrorMessage(error)),
   });
 }
@@ -66,7 +98,10 @@ export function useDeleteMessage(roomId) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (messageId) => messagesApi.remove(roomId, messageId),
-    onSuccess: (_data, messageId) => queryClient.setQueryData(qk.rooms.messages(roomId), (data) => dropMessage(data, messageId)),
+    onSuccess: (_data, messageId) =>
+      queryClient.setQueryData(qk.rooms.messages(roomId), (data) =>
+        dropMessage(data, messageId),
+      ),
     onError: (error) => toast.error(getErrorMessage(error)),
   });
 }
@@ -81,40 +116,61 @@ export function useRoomRealtime(roomId, currentUserId) {
   useEffect(() => {
     if (!roomId) return undefined;
     const socket = connectSocket();
-    const join = () => socket.emit('room:join', roomId);
+    const join = () => socket.emit("room:join", roomId);
     const messagesKey = qk.rooms.messages(roomId);
 
     const handlers = {
-      'message:new': (message) => {
+      "message:new": (message) => {
         if (message.room !== roomId) return;
-        queryClient.setQueryData(messagesKey, (data) => upsertMessage(data, message));
+        queryClient.setQueryData(messagesKey, (data) =>
+          upsertMessage(data, message),
+        );
         clearTyping(message.author?._id);
       },
-      'message:updated': (message) => {
-        if (message.room === roomId) queryClient.setQueryData(messagesKey, (data) => upsertMessage(data, message));
+      "message:updated": (message) => {
+        if (message.room === roomId)
+          queryClient.setQueryData(messagesKey, (data) =>
+            upsertMessage(data, message),
+          );
       },
-      'message:deleted': ({ _id, room }) => {
-        if (room === roomId) queryClient.setQueryData(messagesKey, (data) => dropMessage(data, _id));
+      "message:deleted": ({ _id, room }) => {
+        if (room === roomId)
+          queryClient.setQueryData(messagesKey, (data) =>
+            dropMessage(data, _id),
+          );
       },
-      'room:updated': (room) => {
-        if (room._id !== roomId) return;
-        queryClient.setQueryData(qk.rooms.detail(roomId), room);
-        queryClient.invalidateQueries({ queryKey: qk.rooms.list });
+      "room:patch": (patch) => {
+        if (patch.roomId !== roomId) return;
+        queryClient.setQueryData(qk.rooms.detail(roomId), (room) =>
+          room ? applyRoomPatch(room, patch) : room,
+        );
+        // La lista de salas se marca como desactualizada sin pedirla ahora: si no, cada cambio haría
+        // que todos los participantes conectados la pidieran a la vez. Se recarga al volver a ella.
+        queryClient.invalidateQueries({
+          queryKey: qk.rooms.list,
+          refetchType: "none",
+        });
       },
-      'room:files': ({ roomId: changed }) => {
-        if (changed === roomId) queryClient.invalidateQueries({ queryKey: qk.rooms.files(roomId) });
+      "room:files": ({ roomId: changed }) => {
+        if (changed === roomId)
+          queryClient.invalidateQueries({ queryKey: qk.rooms.files(roomId) });
       },
-      'room:deleted': ({ roomId: deleted }) => {
+      "room:deleted": ({ roomId: deleted }) => {
         if (deleted !== roomId) return;
-        toast('Esta sala se ha eliminado');
+        toast("Esta sala se ha eliminado");
         queryClient.invalidateQueries({ queryKey: qk.rooms.all });
-        navigate('/salas', { replace: true });
+        navigate("/salas", { replace: true });
       },
-      'room:typing': ({ roomId: room, user }) => {
+      "room:typing": ({ roomId: room, user }) => {
         if (room !== roomId || user._id === currentUserId) return;
-        setTyping((list) => (list.some((item) => item._id === user._id) ? list : [...list, user]));
+        setTyping((list) =>
+          list.some((item) => item._id === user._id) ? list : [...list, user],
+        );
         clearTimeout(timers.current.get(user._id));
-        timers.current.set(user._id, setTimeout(() => clearTyping(user._id), TYPING_TIMEOUT));
+        timers.current.set(
+          user._id,
+          setTimeout(() => clearTyping(user._id), TYPING_TIMEOUT),
+        );
       },
     };
 
@@ -137,14 +193,18 @@ export function useRoomRealtime(roomId, currentUserId) {
     };
 
     if (socket.connected) onReconnect();
-    socket.on('connect', onReconnect);
-    Object.entries(handlers).forEach(([event, handler]) => socket.on(event, handler));
+    socket.on("connect", onReconnect);
+    Object.entries(handlers).forEach(([event, handler]) =>
+      socket.on(event, handler),
+    );
 
     const pending = timers.current;
     return () => {
-      socket.emit('room:leave', roomId);
-      socket.off('connect', onReconnect);
-      Object.entries(handlers).forEach(([event, handler]) => socket.off(event, handler));
+      socket.emit("room:leave", roomId);
+      socket.off("connect", onReconnect);
+      Object.entries(handlers).forEach(([event, handler]) =>
+        socket.off(event, handler),
+      );
       pending.forEach((timer) => clearTimeout(timer));
       pending.clear();
       setTyping([]);
@@ -156,7 +216,7 @@ export function useRoomRealtime(roomId, currentUserId) {
     const now = Date.now();
     if (now - lastTypingEmit.current < 2000) return;
     lastTypingEmit.current = now;
-    connectSocket().emit('room:typing', roomId);
+    connectSocket().emit("room:typing", roomId);
   };
 
   return { typing, notifyTyping };

@@ -20,9 +20,13 @@ export function emitToRoom(roomId, event, payload) {
 
 // Saca de un canal de sala todas las conexiones de un usuario (expulsado o que sale).
 export function detachUserFromRoom(userId, roomId) {
-  io?.in(channels.user(String(userId))).socketsLeave(channels.room(String(roomId)));
+  io?.in(channels.user(String(userId))).socketsLeave(
+    channels.room(String(roomId)),
+  );
 }
 
 export function closeRoomChannel(roomId) {
-  io?.in(channels.room(String(roomId))).socketsLeave(channels.room(String(roomId)));
+  io?.in(channels.room(String(roomId))).socketsLeave(
+    channels.room(String(roomId)),
+  );
 }

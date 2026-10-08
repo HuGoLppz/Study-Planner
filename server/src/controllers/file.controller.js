@@ -1,4 +1,4 @@
-import * as fileService from '../services/file.service.js';
+import * as fileService from "../services/file.service.js";
 
 export async function list(req, res) {
   res.json({ items: await fileService.listFiles(req.room._id) });
@@ -15,12 +15,24 @@ export async function upload(req, res) {
 }
 
 export async function download(req, res) {
-  const { filePath, file } = await fileService.getDownload(req.room._id, req.valid.params.fileId);
-  res.set('Cache-Control', 'private, no-store');
-  res.download(filePath, file.originalName, { headers: { 'Content-Type': file.mimeType } });
+  const { url, filePath, file } = await fileService.getDownload(
+    req.room._id,
+    req.valid.params.fileId,
+  );
+  res.set("Cache-Control", "private, no-store");
+  // Con S3, el navegador descarga directamente del almacenamiento con un enlace firmado de 60 s.
+  if (url) return res.redirect(302, url);
+  return res.download(filePath, file.originalName, {
+    headers: { "Content-Type": file.mimeType },
+  });
 }
 
 export async function remove(req, res) {
-  await fileService.deleteFile(req.room, req.user, req.membership, req.valid.params.fileId);
+  await fileService.deleteFile(
+    req.room,
+    req.user,
+    req.membership,
+    req.valid.params.fileId,
+  );
   res.status(204).end();
 }

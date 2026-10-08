@@ -1,5 +1,5 @@
 /*
-  Sistema visual de STUDY-PLANNER: tinta de bolígrafo sobre papel frío y fluorescentes para lo
+  Sistema visual de STUDY-PLANNER: tinta negra sobre papel frío y fluorescentes para lo
   que importa ahora. El tema se fija en <html data-theme> (ver index.html y useTheme).
 */
 :root {
@@ -12,15 +12,15 @@
   --sheet-3: #eceef6;
 
   /* Tinta */
-  --ink: #1b2463;
-  --ink-2: #525a8a;
-  --ink-3: #8c92b5;
+  --ink: #141416;
+  --ink-2: #55555c;
+  --ink-3: #8e8e96;
   --rule: #dadeea;
   --rule-strong: #c3c8db;
 
   /* Estado */
   --marker: #f7e641;
-  --on-marker: #141a4a;
+  --on-marker: #141416;
   --red-pen: #c8243a;
   --red-wash: #fbe8eb;
   --done: #1f6f4a;
@@ -28,7 +28,7 @@
   /* Acciones */
   --primary-bg: var(--ink);
   --primary-fg: #ffffff;
-  --primary-hover: #2a3480;
+  --primary-hover: #2e2e33;
   --focus-ring: #4453c9;
 
   /* Gráficas (validadas: ver docs/ARCHITECTURE.md) */
@@ -47,9 +47,10 @@
   --hl-mint: #7fe8cf;
   --hl-coral: #ff9c8a;
 
-  --shadow-pop: 0 18px 40px -18px rgb(27 36 99 / 0.35), 0 2px 8px rgb(27 36 99 / 0.08);
-  --shadow-lift: 0 1px 2px rgb(27 36 99 / 0.08);
-  --scrim: rgb(20 26 74 / 0.36);
+  --shadow-pop:
+    0 18px 40px -18px rgb(0 0 0 / 0.28), 0 2px 8px rgb(0 0 0 / 0.07);
+  --shadow-lift: 0 1px 2px rgb(0 0 0 / 0.07);
+  --scrim: rgb(0 0 0 / 0.4);
 
   /* Forma: el radio depende de la jerarquía, no es uno para todo */
   --radius-sheet: 22px;
@@ -58,7 +59,7 @@
   --radius-chip: 6px;
 
   /* Tipografía: Recursive. CASL 1 = rotulador (titulares), 0 = lineal (interfaz) */
-  --font: 'Recursive Variable', ui-sans-serif, system-ui, sans-serif;
+  --font: "Recursive Variable", ui-sans-serif, system-ui, sans-serif;
   --fs-12: 0.75rem;
   --fs-14: 0.875rem;
   --fs-16: 1rem;
@@ -88,35 +89,35 @@
   --duration: 180ms;
 }
 
-:root[data-theme='dark'] {
+:root[data-theme="dark"] {
   color-scheme: dark;
 
-  --canvas: #0c0f27;
-  --sheet: #161a3a;
-  --sheet-2: #1d2247;
-  --sheet-3: #252b55;
+  --canvas: #0a0a0b;
+  --sheet: #141416;
+  --sheet-2: #1b1b1e;
+  --sheet-3: #242428;
 
-  --ink: #e7e8f4;
-  --ink-2: #a6aacb;
-  --ink-3: #6f75a0;
-  --rule: #2b3163;
-  --rule-strong: #3a4178;
+  --ink: #ededef;
+  --ink-2: #a5a5ac;
+  --ink-3: #74747c;
+  --rule: #2a2a2f;
+  --rule-strong: #3b3b42;
 
   --red-pen: #ff6b7a;
-  --red-wash: #3a1d35;
+  --red-wash: #3a1a1f;
   --done: #7fd8a8;
 
-  --primary-bg: #e7e8f4;
-  --primary-fg: #161a3a;
+  --primary-bg: #ededef;
+  --primary-fg: #141416;
   --primary-hover: #ffffff;
   --focus-ring: #8c97ff;
 
   --chart-accent: #6f7cf2;
   --chart-alert: #ee5468;
-  --chart-muted: #4a5288;
-  --chart-grid: #232954;
+  --chart-muted: #55555e;
+  --chart-grid: #232327;
 
   --shadow-pop: 0 20px 44px -16px rgb(0 0 0 / 0.6), 0 2px 8px rgb(0 0 0 / 0.3);
   --shadow-lift: 0 1px 2px rgb(0 0 0 / 0.4);
-  --scrim: rgb(4 6 20 / 0.6);
+  --scrim: rgb(0 0 0 / 0.65);
 }

@@ -1,4 +1,4 @@
-import { io } from 'socket.io-client';
+import { io } from "socket.io-client";
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || undefined;
 
@@ -10,7 +10,8 @@ export function getSocket() {
     socket = io(SOCKET_URL, {
       withCredentials: true,
       autoConnect: false,
-      transports: ['websocket', 'polling'],
+      // Solo WebSocket, como el servidor: así funciona igual con uno o varios procesos.
+      transports: ["websocket"],
     });
   }
   return socket;

@@ -1,12 +1,12 @@
-import { useEffect } from 'react';
+import { useEffect } from "react";
 
-const STORAGE_KEY = 'sp-theme';
+const STORAGE_KEY = "sp-theme";
 
 function readStored() {
   try {
-    return localStorage.getItem(STORAGE_KEY) ?? 'system';
+    return localStorage.getItem(STORAGE_KEY) ?? "system";
   } catch {
-    return 'system';
+    return "system";
   }
 }
 
@@ -20,14 +20,14 @@ export function useTheme(preference) {
       // Sin almacenamiento: el tema se aplica igualmente en esta sesión.
     }
 
-    const media = window.matchMedia('(prefers-color-scheme: dark)');
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
     const apply = () => {
-      const dark = choice === 'dark' || (choice === 'system' && media.matches);
-      document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+      const dark = choice === "dark" || (choice === "system" && media.matches);
+      document.documentElement.dataset.theme = dark ? "dark" : "light";
     };
     apply();
-    if (choice !== 'system') return undefined;
-    media.addEventListener('change', apply);
-    return () => media.removeEventListener('change', apply);
+    if (choice !== "system") return undefined;
+    media.addEventListener("change", apply);
+    return () => media.removeEventListener("change", apply);
   }, [preference]);
 }

@@ -2,7 +2,7 @@
   "name": "study-planner",
   "version": "1.0.0",
   "private": true,
-  "description": "Plataforma de organización académica y colaboración entre estudiantes (React + Node.js + MongoDB)",
+  "description": "Plataforma de organización académica y colaboración entre estudiantes (React + Node.js + PostgreSQL)",
   "engines": {
     "node": ">=20.19"
   },
@@ -14,6 +14,11 @@
     "build": "npm run build --prefix client",
     "start": "npm start --prefix server",
     "seed": "npm run seed --prefix server",
-    "seed:clear": "npm run seed:clear --prefix server"
+    "seed:clear": "npm run seed:clear --prefix server",
+    "seed:load": "npm run seed:load --prefix server --",
+    "load-test": "node scripts/load-test.mjs",
+    "db:import-sqlite": "npm run db:import-sqlite --prefix server --",
+    "services:up": "docker compose up -d",
+    "services:down": "docker compose down"
   }
 }

@@ -1,5 +1,5 @@
-import { Component } from 'react';
-import { ErrorState } from './Feedback.jsx';
+import { Component } from "react";
+import { ErrorState } from "./Feedback.jsx";
 
 // Si una pantalla falla al pintarse, se muestra un error recuperable en lugar de una página en blanco.
 export class ErrorBoundary extends Component {
@@ -24,7 +24,10 @@ export class ErrorBoundary extends Component {
       <div style={{ padding: 32 }}>
         <ErrorState
           title="Esta pantalla no se ha podido mostrar"
-          error={{ message: 'Recarga la página. Si vuelve a ocurrir, prueba desde otra sección.' }}
+          error={{
+            message:
+              "Recarga la página. Si vuelve a ocurrir, prueba desde otra sección.",
+          }}
           onRetry={() => window.location.reload()}
         />
       </div>

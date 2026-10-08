@@ -1,9 +1,9 @@
-import { useQuery } from '@tanstack/react-query';
-import { addDays, endOfDay, startOfDay } from 'date-fns';
-import { useMemo } from 'react';
-import { dashboardApi } from '../services/api.js';
-import { dayKey, timeZone } from '../utils/dates.js';
-import { qk } from './queryKeys.js';
+import { useQuery } from "@tanstack/react-query";
+import { addDays, endOfDay, startOfDay } from "date-fns";
+import { useMemo } from "react";
+import { dashboardApi } from "../services/api.js";
+import { dayKey, timeZone } from "../utils/dates.js";
+import { qk } from "./queryKeys.js";
 
 export const HORIZON_DAYS = 14;
 
@@ -19,5 +19,8 @@ export function useDashboard() {
     };
   }, []);
 
-  return useQuery({ queryKey: qk.dashboard(params), queryFn: () => dashboardApi.get(params) });
+  return useQuery({
+    queryKey: qk.dashboard(params),
+    queryFn: () => dashboardApi.get(params),
+  });
 }

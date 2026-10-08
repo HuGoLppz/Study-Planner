@@ -1,0 +1,9 @@
+{
+  "identities": [
+    {
+      "name": "study-planner-dev",
+      "credentials": [{ "accessKey": "study-planner-dev", "secretKey": "study-planner-dev-secret" }],
+      "actions": ["Admin", "Read", "Write", "List", "Tagging"]
+    }
+  ]
+}

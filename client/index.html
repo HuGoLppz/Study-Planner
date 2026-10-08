@@ -2,21 +2,38 @@
 <html lang="es">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="description" content="Organiza tus tareas, notas y salas de estudio en un solo sitio." />
-    <meta name="theme-color" content="#E9ECF3" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#0C0F27" media="(prefers-color-scheme: dark)" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <meta
+      name="description"
+      content="Organiza tus tareas, notas y salas de estudio en un solo sitio."
+    />
+    <meta
+      name="theme-color"
+      content="#E9ECF3"
+      media="(prefers-color-scheme: light)"
+    />
+    <meta
+      name="theme-color"
+      content="#0A0A0B"
+      media="(prefers-color-scheme: dark)"
+    />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>Study Planner</title>
     <script>
       // Aplica el tema antes de pintar para evitar un destello de color.
       (function () {
         try {
-          var stored = localStorage.getItem('sp-theme');
-          var dark = stored === 'dark' || (stored !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-          document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+          var stored = localStorage.getItem("sp-theme");
+          var dark =
+            stored === "dark" ||
+            (stored !== "light" &&
+              window.matchMedia("(prefers-color-scheme: dark)").matches);
+          document.documentElement.dataset.theme = dark ? "dark" : "light";
         } catch (e) {
-          document.documentElement.dataset.theme = 'light';
+          document.documentElement.dataset.theme = "light";
         }
       })();
     </script>

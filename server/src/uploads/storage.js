@@ -1,39 +1,31 @@
-import crypto from 'node:crypto';
-import fs from 'node:fs';
-import fsp from 'node:fs/promises';
-import path from 'node:path';
-import multer from 'multer';
-import { env } from '../config/env.js';
-import { ApiError } from '../utils/ApiError.js';
-import { logger } from '../utils/logger.js';
-import { AVATAR_TYPES, ROOM_FILE_TYPES, describeExtensions, matchesSignature } from './fileTypes.js';
-
-export const paths = {
-  avatars: () => path.join(env.uploadDir, 'avatars'),
-  room: (roomId) => path.join(env.uploadDir, 'rooms', String(roomId)),
-};
-
-function ensureDir(dir) {
-  fs.mkdirSync(dir, { recursive: true });
-  return dir;
-}
+import crypto from "node:crypto";
+import path from "node:path";
+import multer from "multer";
+import { env } from "../config/env.js";
+import { ApiError } from "../utils/ApiError.js";
+import {
+  AVATAR_TYPES,
+  ROOM_FILE_TYPES,
+  describeExtensions,
+  matchesSignature,
+} from "./fileTypes.js";
+import { keys, objectStore } from "./objectStore.js";
 
 const randomName = (extension) => `${crypto.randomUUID()}${extension}`;
 
-// Sin `destination`, el archivo se queda en memoria para procesarlo antes de guardar nada en disco.
-function createUploader({ table, destination, maxBytes, field }) {
-  const storage = destination
-    ? multer.diskStorage({
-        destination: (req, _file, cb) => cb(null, ensureDir(destination(req))),
-        filename: (_req, file, cb) => cb(null, randomName(path.extname(file.originalname).toLowerCase())),
-      })
-    : multer.memoryStorage();
-
+// Los archivos se reciben en memoria (como mucho MAX_FILE_SIZE_MB), se comprueban y solo entonces
+// se guardan en el almacenamiento (disco o S3, ver objectStore.js). `afterCheck` decide qué hacer
+// con el archivo ya validado.
+function createUploader({ table, maxBytes, field, afterCheck }) {
   const fileFilter = (_req, file, cb) => {
     const rule = table[path.extname(file.originalname).toLowerCase()];
     if (!rule || !rule.accept.includes(file.mimetype)) {
       return cb(
-        new ApiError(415, `Tipo de archivo no admitido. Formatos válidos: ${describeExtensions(table)}.`, 'UNSUPPORTED_FILE_TYPE'),
+        new ApiError(
+          415,
+          `Tipo de archivo no admitido. Formatos válidos: ${describeExtensions(table)}.`,
+          "UNSUPPORTED_FILE_TYPE",
+        ),
       );
     }
     file.canonicalMime = rule.mime;
@@ -43,9 +35,9 @@ function createUploader({ table, destination, maxBytes, field }) {
 
   // defParamCharset: los navegadores envían el nombre del archivo en UTF-8 (tildes, eñes).
   const upload = multer({
-    storage,
+    storage: multer.memoryStorage(),
     fileFilter,
-    defParamCharset: 'utf8',
+    defParamCharset: "utf8",
     limits: { fileSize: maxBytes, files: 1, fields: 5 },
   }).single(field);
 
@@ -53,71 +45,81 @@ function createUploader({ table, destination, maxBytes, field }) {
   return (req, res, next) => {
     upload(req, res, async (error) => {
       if (error) return next(error);
-      if (!req.file) return next(ApiError.badRequest('Adjunta un archivo', 'FILE_REQUIRED'));
-
+      if (!req.file)
+        return next(ApiError.badRequest("Adjunta un archivo", "FILE_REQUIRED"));
+      if (
+        !matchesSignature(req.file.signature, req.file.buffer.subarray(0, 16))
+      ) {
+        return next(
+          new ApiError(
+            415,
+            "El contenido del archivo no coincide con su extensión.",
+            "FILE_SIGNATURE_MISMATCH",
+          ),
+        );
+      }
       try {
-        const header = req.file.buffer ? req.file.buffer.subarray(0, 16) : await readHeader(req.file.path);
-        if (!matchesSignature(req.file.signature, header)) {
-          if (req.file.path) await removeFile(req.file.path);
-          return next(new ApiError(415, 'El contenido del archivo no coincide con su extensión.', 'FILE_SIGNATURE_MISMATCH'));
-        }
+        await afterCheck?.(req);
         return next();
-      } catch (readError) {
-        return next(readError);
+      } catch (storeError) {
+        return next(storeError);
       }
     });
   };
-}
-
-async function readHeader(filePath) {
-  const handle = await fsp.open(filePath, 'r');
-  try {
-    const header = Buffer.alloc(16);
-    await handle.read(header, 0, 16, 0);
-    return header;
-  } finally {
-    await handle.close();
-  }
 }
 
 // La foto de perfil no se guarda tal cual: se procesa en memoria (ver uploads/images.js).
 export const uploadAvatar = createUploader({
   table: AVATAR_TYPES,
   maxBytes: env.maxAvatarSizeBytes,
-  field: 'avatar',
+  field: "avatar",
 });
 
-// Guarda la foto de perfil ya procesada y devuelve su nombre en disco.
-export async function storeAvatar(buffer, extension) {
+// Los archivos de sala se guardan con nombre aleatorio en rooms/<sala>/.
+export const uploadRoomFile = createUploader({
+  table: ROOM_FILE_TYPES,
+  maxBytes: env.maxFileSizeBytes,
+  field: "file",
+  afterCheck: async (req) => {
+    const storedName = randomName(
+      path.extname(req.file.originalname).toLowerCase(),
+    );
+    await objectStore.put(
+      keys.roomFile(req.room._id, storedName),
+      req.file.buffer,
+      req.file.canonicalMime,
+      req.file.originalname,
+    );
+    req.file.filename = storedName;
+    req.file.buffer = null; // ya está guardado: no retenerlo en memoria
+  },
+});
+
+// Foto de perfil ya procesada: la guarda y devuelve su nombre.
+export async function storeAvatar(buffer, extension, contentType) {
   const fileName = randomName(extension);
-  await fsp.writeFile(path.join(ensureDir(paths.avatars()), fileName), buffer);
+  await objectStore.put(keys.avatar(fileName), buffer, contentType);
   return fileName;
 }
 
-export const uploadRoomFile = createUploader({
-  table: ROOM_FILE_TYPES,
-  destination: (req) => paths.room(req.room._id),
-  maxBytes: env.maxFileSizeBytes,
-  field: 'file',
-});
+export const removeAvatarFile = (fileName) =>
+  objectStore.remove(keys.avatar(fileName));
+export const readAvatarFile = (fileName) =>
+  objectStore.read(keys.avatar(fileName));
 
-export async function removeFile(filePath) {
-  try {
-    await fsp.unlink(filePath);
-  } catch (error) {
-    if (error.code !== 'ENOENT') logger.warn(`No se pudo borrar ${filePath}`, error.message);
-  }
-}
+export const removeRoomFile = (roomId, storedName) =>
+  objectStore.remove(keys.roomFile(roomId, storedName));
+export const removeRoomFiles = (roomId) =>
+  objectStore.removePrefix(keys.room(roomId));
 
-export async function removeDirectory(dirPath) {
-  await fsp.rm(dirPath, { recursive: true, force: true });
-}
-
-export async function fileExists(filePath) {
-  try {
-    await fsp.access(filePath, fs.constants.R_OK);
-    return true;
-  } catch {
-    return false;
-  }
+// Descarga de un archivo de sala: enlace firmado (S3) o ruta en disco. null si ya no existe.
+export async function roomFileDownload(
+  roomId,
+  storedName,
+  { fileName, contentType },
+) {
+  const key = keys.roomFile(roomId, storedName);
+  if (!(await objectStore.exists(key))) return null;
+  const url = await objectStore.downloadLink(key, { fileName, contentType });
+  return url ? { url } : { filePath: objectStore.localPath(key) };
 }

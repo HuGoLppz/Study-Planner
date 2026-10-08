@@ -1,10 +1,10 @@
-import { env } from '../config/env.js';
+import { env } from "../config/env.js";
 
 const baseOptions = () => ({
   httpOnly: true,
   secure: env.cookieSecure,
   sameSite: env.cookieSameSite,
-  path: '/',
+  path: "/",
 });
 
 export function setSessionCookie(res, token) {

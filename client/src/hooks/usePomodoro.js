@@ -1,15 +1,23 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect } from 'react';
-import { toast } from 'sonner';
-import { pomodoroApi } from '../services/api.js';
-import { PHASE_LABEL, remainingMsAt, usePomodoroStore } from '../store/pomodoroStore.js';
-import { getErrorMessage } from '../utils/errors.js';
-import { qk } from './queryKeys.js';
-import { pageTitle } from './useUi.js';
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
+import { toast } from "sonner";
+import { pomodoroApi } from "../services/api.js";
+import {
+  PHASE_LABEL,
+  remainingMsAt,
+  usePomodoroStore,
+} from "../store/pomodoroStore.js";
+import { getErrorMessage } from "../utils/errors.js";
+import { qk } from "./queryKeys.js";
+import { pageTitle } from "./useUi.js";
 
 export function usePomodoroSettings() {
   const syncSettings = usePomodoroStore((state) => state.syncSettings);
-  const query = useQuery({ queryKey: qk.pomodoro.settings, queryFn: pomodoroApi.settings, staleTime: Infinity });
+  const query = useQuery({
+    queryKey: qk.pomodoro.settings,
+    queryFn: pomodoroApi.settings,
+    staleTime: Infinity,
+  });
 
   useEffect(() => {
     if (query.data) syncSettings(query.data);
@@ -25,18 +33,24 @@ export function useUpdatePomodoroSettings() {
     onSuccess: (settings) => {
       queryClient.setQueryData(qk.pomodoro.settings, settings);
       syncSettings(settings);
-      toast.success('Tiempos guardados');
+      toast.success("Tiempos guardados");
     },
     onError: (error) => toast.error(getErrorMessage(error)),
   });
 }
 
 export function usePomodoroDay(day) {
-  return useQuery({ queryKey: qk.pomodoro.day(day), queryFn: () => pomodoroApi.day(day) });
+  return useQuery({
+    queryKey: qk.pomodoro.day(day),
+    queryFn: () => pomodoroApi.day(day),
+  });
 }
 
 export function usePomodoroHistory(from, to) {
-  return useQuery({ queryKey: qk.pomodoro.history(from, to), queryFn: () => pomodoroApi.history(from, to) });
+  return useQuery({
+    queryKey: qk.pomodoro.history(from, to),
+    queryFn: () => pomodoroApi.history(from, to),
+  });
 }
 
 export function useLogPomodoroSession() {
@@ -45,9 +59,10 @@ export function useLogPomodoroSession() {
     mutationFn: pomodoroApi.logSession,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: qk.pomodoro.all });
-      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
     },
-    onError: (error) => toast.error(getErrorMessage(error, 'No se ha podido guardar la sesión')),
+    onError: (error) =>
+      toast.error(getErrorMessage(error, "No se ha podido guardar la sesión")),
   });
 }
 
@@ -61,8 +76,14 @@ function chime() {
       const gain = context.createGain();
       oscillator.frequency.value = index === 0 ? 660 : 880;
       gain.gain.setValueAtTime(0.0001, context.currentTime + offset);
-      gain.gain.exponentialRampToValueAtTime(0.18, context.currentTime + offset + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + offset + 0.5);
+      gain.gain.exponentialRampToValueAtTime(
+        0.18,
+        context.currentTime + offset + 0.02,
+      );
+      gain.gain.exponentialRampToValueAtTime(
+        0.0001,
+        context.currentTime + offset + 0.5,
+      );
       oscillator.connect(gain).connect(context.destination);
       oscillator.start(context.currentTime + offset);
       oscillator.stop(context.currentTime + offset + 0.55);
@@ -75,7 +96,7 @@ function chime() {
 
 const formatClock = (ms) => {
   const total = Math.ceil(ms / 1000);
-  return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
 };
 
 // Motor global: detecta el final de cada fase, la registra y actualiza el título de la pestaña.
@@ -85,11 +106,11 @@ export function usePomodoroEngine(enabled) {
   usePomodoroSettings();
 
   useEffect(() => {
-    if (!enabled || status !== 'running') return undefined;
+    if (!enabled || status !== "running") return undefined;
 
     const tick = () => {
       const state = usePomodoroStore.getState();
-      if (state.status !== 'running') return;
+      if (state.status !== "running") return;
       const remaining = remainingMsAt(state);
 
       if (remaining <= 0) {
@@ -97,7 +118,9 @@ export function usePomodoroEngine(enabled) {
         if (record) logSession(record);
         chime();
         toast.success(
-          finishedPhase === 'focus' ? 'Bloque de concentración terminado' : 'Descanso terminado',
+          finishedPhase === "focus"
+            ? "Bloque de concentración terminado"
+            : "Descanso terminado",
           { description: `Siguiente: ${PHASE_LABEL[nextPhase].toLowerCase()}` },
         );
         return;

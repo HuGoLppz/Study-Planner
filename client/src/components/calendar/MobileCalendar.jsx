@@ -1,18 +1,23 @@
-import clsx from 'clsx';
-import { isSameDay, isSameMonth, isToday } from 'date-fns';
-import { dayKey, fmt } from '../../utils/dates.js';
-import { subjectColor } from '../../utils/subjects.js';
-import styles from './Calendar.module.css';
+import clsx from "clsx";
+import { isSameDay, isSameMonth, isToday } from "date-fns";
+import { dayKey, fmt } from "../../utils/dates.js";
+import { subjectColor } from "../../utils/subjects.js";
 
 function Dots({ items }) {
-  if (!items.length) return <span className={styles.dots} />;
+  if (!items.length) return <span className="calendar-dots" />;
   return (
-    <span className={styles.dots} aria-hidden>
+    <span className="calendar-dots" aria-hidden>
       {items.slice(0, 3).map((item) => (
         <span
           key={item.id}
-          className={clsx(styles.dot, item.kind !== 'task' && styles.dotRoom, item.overdue && styles.dotLate)}
-          style={{ '--chip': item.color ? subjectColor(item.color) : undefined }}
+          className={clsx(
+            "calendar-dot",
+            item.kind !== "task" && "calendar-dot-room",
+            item.overdue && "calendar-dot-late",
+          )}
+          style={{
+            "--chip": item.color ? subjectColor(item.color) : undefined,
+          }}
         />
       ))}
     </span>
@@ -22,7 +27,11 @@ function Dots({ items }) {
 // Móvil: tira de 7 días. Se toca un día para ver su lista debajo.
 export function WeekStrip({ days, byDay, selected, onSelect }) {
   return (
-    <div className={styles.strip} role="listbox" aria-label="Días de la semana">
+    <div
+      className="calendar-strip"
+      role="listbox"
+      aria-label="Días de la semana"
+    >
       {days.map((day) => {
         const items = byDay.get(dayKey(day)) ?? [];
         const active = isSameDay(day, selected);
@@ -32,12 +41,16 @@ export function WeekStrip({ days, byDay, selected, onSelect }) {
             type="button"
             role="option"
             aria-selected={active}
-            className={clsx(styles.stripDay, active && styles.stripActive, isToday(day) && styles.stripToday)}
+            className={clsx(
+              "calendar-strip-day",
+              active && "calendar-strip-active",
+              isToday(day) && "calendar-strip-today",
+            )}
             onClick={() => onSelect(day)}
             aria-label={`${fmt(day, "EEEE d 'de' MMMM")}, ${items.length} elementos`}
           >
-            <span className={styles.stripName}>{fmt(day, 'EEEEE')}</span>
-            <span className={styles.stripDate}>{fmt(day, 'd')}</span>
+            <span className="calendar-strip-name">{fmt(day, "EEEEE")}</span>
+            <span className="calendar-strip-date">{fmt(day, "d")}</span>
             <Dots items={items} />
           </button>
         );
@@ -49,13 +62,17 @@ export function WeekStrip({ days, byDay, selected, onSelect }) {
 // Móvil: mes compacto con puntos de color en lugar de títulos.
 export function MonthDots({ days, anchor, byDay, selected, onSelect }) {
   return (
-    <div className={styles.monthDots}>
-      <div className={styles.weekdays} aria-hidden>
-        {['L', 'M', 'X', 'J', 'V', 'S', 'D'].map((day) => (
+    <div className="calendar-month-dots">
+      <div className="calendar-weekdays" aria-hidden>
+        {["L", "M", "X", "J", "V", "S", "D"].map((day) => (
           <span key={day}>{day}</span>
         ))}
       </div>
-      <div className={styles.dotsGrid} role="listbox" aria-label={fmt(anchor, 'MMMM yyyy')}>
+      <div
+        className="calendar-dots-grid"
+        role="listbox"
+        aria-label={fmt(anchor, "MMMM yyyy")}
+      >
         {days.map((day) => {
           const items = byDay.get(dayKey(day)) ?? [];
           const active = isSameDay(day, selected);
@@ -65,11 +82,16 @@ export function MonthDots({ days, anchor, byDay, selected, onSelect }) {
               type="button"
               role="option"
               aria-selected={active}
-              className={clsx(styles.dotsDay, !isSameMonth(day, anchor) && styles.outside, active && styles.stripActive, isToday(day) && styles.stripToday)}
+              className={clsx(
+                "calendar-dots-day",
+                !isSameMonth(day, anchor) && "calendar-outside",
+                active && "calendar-strip-active",
+                isToday(day) && "calendar-strip-today",
+              )}
               onClick={() => onSelect(day)}
               aria-label={`${fmt(day, "d 'de' MMMM")}, ${items.length} elementos`}
             >
-              <span className={styles.stripDate}>{fmt(day, 'd')}</span>
+              <span className="calendar-strip-date">{fmt(day, "d")}</span>
               <Dots items={items} />
             </button>
           );

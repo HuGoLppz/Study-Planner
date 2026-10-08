@@ -1,5 +1,6 @@
-import { serializeSelf } from '../serializers/user.serializer.js';
-import * as userService from '../services/user.service.js';
+import { pipeline } from "node:stream/promises";
+import { serializeSelf } from "../serializers/user.serializer.js";
+import * as userService from "../services/user.service.js";
 
 export async function search(req, res) {
   const users = await userService.searchUsers(req.user, req.valid.query);
@@ -7,7 +8,10 @@ export async function search(req, res) {
 }
 
 export async function profile(req, res) {
-  const profileData = await userService.getProfile(req.user, req.valid.params.handle);
+  const profileData = await userService.getProfile(
+    req.user,
+    req.valid.params.handle,
+  );
   res.json({ profile: profileData });
 }
 
@@ -37,8 +41,11 @@ export async function deleteAvatar(req, res) {
 }
 
 export async function avatar(req, res) {
-  const { filePath, mimeType } = await userService.getAvatarFile(req.valid.params.userId);
+  const { stream, mimeType } = await userService.getAvatarFile(
+    req.valid.params.userId,
+  );
   // La URL lleva ?v=<fecha de la foto>: si la foto cambia, cambia la URL, así que puede cachearse sin caducar.
-  res.set('Cache-Control', 'private, max-age=31536000, immutable');
-  res.type(mimeType).sendFile(filePath);
+  res.set("Cache-Control", "private, max-age=31536000, immutable");
+  res.type(mimeType);
+  await pipeline(stream, res);
 }

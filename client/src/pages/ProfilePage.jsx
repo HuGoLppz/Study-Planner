@@ -1,17 +1,22 @@
-import { PencilSimple, SignOut } from '@phosphor-icons/react';
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { AcademicSummary } from '../components/profile/AcademicSummary.jsx';
-import styles from '../components/profile/Profile.module.css';
-import { ProfileIdentity } from '../components/profile/ProfileIdentity.jsx';
-import { AvatarEditor, PasswordForm, PrivacySettings, ProfileForm, ThemeSettings } from '../components/profile/ProfileSettings.jsx';
-import { Button } from '../components/ui/Button.jsx';
-import { Skeleton } from '../components/ui/Feedback.jsx';
-import { Modal } from '../components/ui/Overlay.jsx';
-import { Page, Section } from '../components/ui/Page.jsx';
-import { useAuth } from '../context/AuthContext.jsx';
-import { useGradeStats } from '../hooks/useGrades.js';
-import { formatLongDate } from '../utils/dates.js';
+import { PencilSimple, SignOut } from "@phosphor-icons/react";
+import { useState } from "react";
+import { Link } from "react-router-dom";
+import { AcademicSummary } from "../components/profile/AcademicSummary.jsx";
+import { ProfileIdentity } from "../components/profile/ProfileIdentity.jsx";
+import {
+  AvatarEditor,
+  PasswordForm,
+  PrivacySettings,
+  ProfileForm,
+  ThemeSettings,
+} from "../components/profile/ProfileSettings.jsx";
+import { Button } from "../components/ui/Button.jsx";
+import { Skeleton } from "../components/ui/Feedback.jsx";
+import { Modal } from "../components/ui/Overlay.jsx";
+import { Page, Section } from "../components/ui/Page.jsx";
+import { useAuth } from "../context/AuthContext.jsx";
+import { useGradeStats } from "../hooks/useGrades.js";
+import { formatLongDate } from "../utils/dates.js";
 
 export default function ProfilePage() {
   const { user, logout } = useAuth();
@@ -25,7 +30,11 @@ export default function ProfilePage() {
         user={user}
         avatarSlot={<AvatarEditor user={user} />}
         actions={
-          <Button variant="secondary" icon={PencilSimple} onClick={() => setEditing(true)}>
+          <Button
+            variant="secondary"
+            icon={PencilSimple}
+            onClick={() => setEditing(true)}
+          >
             Editar perfil
           </Button>
         }
@@ -45,11 +54,11 @@ export default function ProfilePage() {
         />
       )}
 
-      <div className={styles.settings}>
+      <div className="profile-settings">
         <Section title="Privacidad" id="profile-privacy">
           <PrivacySettings user={user} />
         </Section>
-        <div className={styles.stack}>
+        <div className="profile-stack">
           <Section title="Apariencia" id="profile-theme">
             <ThemeSettings user={user} />
           </Section>
@@ -59,9 +68,10 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      <Section title="Cuenta" id="profile-account" className={styles.logout}>
+      <Section title="Cuenta" id="profile-account" className="profile-logout">
         <p className="muted small">
-          Correo: {user.email}. Te uniste el {formatLongDate(user.createdAt).toLowerCase()}.
+          Correo: {user.email}. Te uniste el{" "}
+          {formatLongDate(user.createdAt).toLowerCase()}.
         </p>
         <Button
           variant="dangerGhost"
@@ -78,7 +88,13 @@ export default function ProfilePage() {
       </Section>
 
       <Modal open={editing} onOpenChange={setEditing} title="Editar perfil">
-        {editing ? <ProfileForm user={user} onDone={() => setEditing(false)} onCancel={() => setEditing(false)} /> : null}
+        {editing ? (
+          <ProfileForm
+            user={user}
+            onDone={() => setEditing(false)}
+            onCancel={() => setEditing(false)}
+          />
+        ) : null}
       </Modal>
     </Page>
   );

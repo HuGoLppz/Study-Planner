@@ -1,5 +1,5 @@
-import { serializeSubject } from '../serializers/user.serializer.js';
-import * as subjectService from '../services/subject.service.js';
+import { serializeSubject } from "../serializers/user.serializer.js";
+import * as subjectService from "../services/subject.service.js";
 
 export function list(req, res) {
   res.json({ items: req.user.subjects.map(serializeSubject) });
@@ -11,7 +11,11 @@ export async function create(req, res) {
 }
 
 export async function update(req, res) {
-  const subject = await subjectService.updateSubject(req.user, req.valid.params.subjectId, req.valid.body);
+  const subject = await subjectService.updateSubject(
+    req.user,
+    req.valid.params.subjectId,
+    req.valid.body,
+  );
   res.json({ subject: serializeSubject(subject) });
 }
 

@@ -1,13 +1,15 @@
-import { Navigate, Outlet, useLocation } from 'react-router-dom';
-import { ErrorState, PageLoader } from '../components/ui/Feedback.jsx';
-import { useAuth } from '../context/AuthContext.jsx';
+import { Navigate, Outlet, useLocation } from "react-router-dom";
+import { AppSkeleton, AuthSkeleton } from "../components/ui/AppSkeleton.jsx";
+import { ErrorState } from "../components/ui/Feedback.jsx";
+import { useAuth } from "../context/AuthContext.jsx";
 
 export function RequireAuth() {
   const { status, isError, retry } = useAuth();
   const location = useLocation();
 
-  if (status === 'loading') return <PageLoader label="Comprobando tu sesión" />;
-  if (status === 'anonymous') {
+  if (status === "loading")
+    return <AppSkeleton label="Comprobando tu sesión" />;
+  if (status === "anonymous") {
     if (isError) {
       return (
         <div style={{ padding: 32 }}>
@@ -24,7 +26,8 @@ export function GuestOnly() {
   const { status } = useAuth();
   const location = useLocation();
 
-  if (status === 'loading') return <PageLoader label="Comprobando tu sesión" />;
-  if (status === 'authenticated') return <Navigate to={location.state?.from?.pathname ?? '/'} replace />;
+  if (status === "loading") return <AuthSkeleton />;
+  if (status === "authenticated")
+    return <Navigate to={location.state?.from?.pathname ?? "/"} replace />;
   return <Outlet />;
 }
