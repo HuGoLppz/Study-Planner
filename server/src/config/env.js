@@ -12,7 +12,7 @@ function required(name) {
   const value = process.env[name];
   if (!value) {
     throw new Error(
-      `Falta la variable de entorno ${name}. Revisa server/.env (puedes partir de .env.example).`,
+      `Falta la variable de entorno ${name}. Revisa server/.env (o el .env de la raíz si usas Docker), partiendo de su .env.example.`,
     );
   }
   return value;
@@ -61,6 +61,16 @@ export const env = Object.freeze({
         createBucket: process.env.S3_CREATE_BUCKET === "true",
       })
     : null,
+  // Inicio de sesión con Google y Apple (opcional): cada proveedor se activa con su identificador de
+  // cliente (Google: ID de cliente de OAuth; Apple: Services ID). No hace falta ningún secreto.
+  oauth: Object.freeze({
+    google: process.env.GOOGLE_CLIENT_ID
+      ? Object.freeze({ clientId: process.env.GOOGLE_CLIENT_ID.trim() })
+      : null,
+    apple: process.env.APPLE_CLIENT_ID
+      ? Object.freeze({ clientId: process.env.APPLE_CLIENT_ID.trim() })
+      : null,
+  }),
   jwtSecret,
   sessionDays: Number(process.env.SESSION_DAYS ?? 7),
   cookieName: process.env.COOKIE_NAME ?? "sp_session",

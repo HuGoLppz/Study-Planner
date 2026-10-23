@@ -1,5 +1,13 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Camera, Desktop, Moon, SunDim, Trash } from "@phosphor-icons/react";
+import {
+  AppleLogo,
+  Camera,
+  Desktop,
+  GoogleLogo,
+  Moon,
+  SunDim,
+  Trash,
+} from "@phosphor-icons/react";
 import { useRef } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -12,7 +20,15 @@ import {
   useUpdateProfile,
   useUploadAvatar,
 } from "../../hooks/useProfile.js";
+import {
+  useLinkAccount,
+  useOAuthLinks,
+  useOAuthProviders,
+  useUnlinkAccount,
+} from "../../hooks/useOAuth.js";
+import { confirm } from "../../store/confirmStore.js";
 import { applyFieldErrors } from "../../utils/errors.js";
+import { AppleButton, GoogleButton } from "../auth/SocialButtons.jsx";
 import { PasswordInput } from "../../pages/LoginPage.jsx";
 import { Avatar } from "../ui/Avatar.jsx";
 import { Button } from "../ui/Button.jsx";
@@ -26,6 +42,7 @@ import {
   Textarea,
 } from "../ui/Form.jsx";
 import { OverlayFooter } from "../ui/Overlay.jsx";
+import { Section } from "../ui/Page.jsx";
 
 const AVATAR_TYPES = "image/png,image/jpeg,image/webp";
 // Debe coincidir con MAX_AVATAR_SIZE_MB del servidor, que guarda la foto optimizada (WebP de pocos KB).
@@ -302,5 +319,89 @@ export function PasswordForm() {
         Cambiar contraseña
       </Button>
     </form>
+  );
+}
+
+const PROVIDER_INFO = {
+  google: { label: "Google", icon: GoogleLogo },
+  apple: { label: "Apple", icon: AppleLogo },
+};
+
+// Vincular cuentas de Google o Apple para entrar con ellas. Solo sale si el servidor tiene algún
+// proveedor configurado.
+export function LinkedAccounts() {
+  const { data: providers = [] } = useOAuthProviders();
+  const { data: links = [], isPending } = useOAuthLinks(providers.length > 0);
+  const link = useLinkAccount();
+  const unlink = useUnlinkAccount();
+  if (providers.length === 0) return null;
+
+  const onError = (error) => toast.error(error.message);
+
+  return (
+    <Section
+      title="Cuentas vinculadas"
+      id="profile-links"
+      description="Vincula tu cuenta para entrar sin escribir la contraseña."
+    >
+      <ul className="profile-links">
+        {providers.map(({ provider, clientId }) => {
+          const { label, icon: Icon } = PROVIDER_INFO[provider];
+          const linked = links.find((item) => item.provider === provider);
+          return (
+            <li key={provider} className="profile-links-row">
+              <Icon size={24} aria-hidden className="profile-links-icon" />
+              <div className="profile-links-text">
+                <span className="profile-links-name">{label}</span>
+                <span className="muted small truncate">
+                  {isPending
+                    ? "Comprobando…"
+                    : linked
+                      ? (linked.email ?? "Cuenta vinculada")
+                      : "Sin vincular"}
+                </span>
+              </div>
+              {isPending ? null : linked ? (
+                <Button
+                  variant="dangerGhost"
+                  size="sm"
+                  loading={unlink.isPending && unlink.variables === provider}
+                  onClick={async () => {
+                    const ok = await confirm({
+                      title: `¿Desvincular ${label}?`,
+                      description: `Ya no podrás entrar con esa cuenta de ${label}. Seguirás entrando con tu correo y contraseña.`,
+                      confirmLabel: "Desvincular",
+                      tone: "danger",
+                    });
+                    if (ok) unlink.mutate(provider);
+                  }}
+                >
+                  Desvincular
+                </Button>
+              ) : provider === "google" ? (
+                <GoogleButton
+                  clientId={clientId}
+                  text="continue_with"
+                  onCredential={(credential) =>
+                    link.mutate({ provider, credential })
+                  }
+                  onError={onError}
+                />
+              ) : (
+                <AppleButton
+                  clientId={clientId}
+                  label="Vincular"
+                  variant="secondary"
+                  onCredential={(credential) =>
+                    link.mutateAsync({ provider, credential })
+                  }
+                  onError={onError}
+                />
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </Section>
   );
 }

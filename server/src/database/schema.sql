@@ -59,6 +59,21 @@ CREATE TABLE IF NOT EXISTS Ajustes_Pomodoro (
     ciclos_descanso_largo  integer NOT NULL DEFAULT 4 CHECK (ciclos_descanso_largo BETWEEN 1 AND 12)
 );
 
+-- CUENTAS EXTERNAS ----------------------------------------------------------------------
+-- Cuentas de Google o Apple vinculadas a un usuario para iniciar sesión con ellas. 'sujeto' es el
+-- identificador estable que da el proveedor (claim sub), no el correo, que puede cambiar. Cada
+-- cuenta externa pertenece a un solo usuario y cada usuario tiene como mucho una por proveedor.
+CREATE TABLE IF NOT EXISTS Cuentas_Externas (
+    cuenta_id         integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    usuario_id        text NOT NULL REFERENCES Usuarios(usuario_id) ON DELETE CASCADE ON UPDATE CASCADE,
+    proveedor         text NOT NULL CHECK (proveedor IN ('google', 'apple')),
+    sujeto            text NOT NULL CHECK (char_length(sujeto) BETWEEN 1 AND 255),
+    email             text CHECK (char_length(email) <= 254),
+    fecha_vinculacion timestamptz NOT NULL DEFAULT now(),
+    UNIQUE (proveedor, sujeto),
+    UNIQUE (usuario_id, proveedor)
+);
+
 -- AMIGOS --------------------------------------------------------------------------------
 -- Una fila por pareja: usuario_id envía la solicitud y amigo_id la recibe. Al aceptarla pasa
 -- a 'accepted'. El índice único sobre (menor, mayor) impide dos filas para la misma pareja

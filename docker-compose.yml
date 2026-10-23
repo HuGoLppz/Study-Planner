@@ -1,12 +1,46 @@
-# Servicios para desarrollar y probar la fase 4 (varias máquinas): PostgreSQL, Redis y un
-# almacenamiento compatible con S3 (SeaweedFS). Solo para desarrollo: las contraseñas son de prueba
-# y los puertos solo se abren en esta máquina (127.0.0.1).
-#   docker compose up -d      arrancar
-#   docker compose down       parar (los datos se conservan en los volúmenes)
-#   docker compose down -v    parar y borrar los datos
+# Study Planner en Docker. Las contraseñas son de desarrollo y los puertos solo se abren en esta
+# máquina (127.0.0.1).
+#
+#   docker compose up -d --build     la app entera (web + API + PostgreSQL) en http://localhost:4000
+#   docker compose down              parar (los datos se conservan en los volúmenes)
+#   docker compose down -v           parar y borrar la base de datos
+#
+# Para desarrollar con `npm run dev` solo hacen falta los servicios: `npm run services:up` arranca
+# PostgreSQL, Redis y S3 sin la app. Redis y S3 están en el perfil "varias-maquinas": solo los
+# necesita la API repartida en varios servidores.
+#
+# La app lee JWT_SECRET (y el resto de ajustes opcionales) del archivo .env de esta carpeta; parte
+# de .env.example.
 name: study-planner
 
 services:
+  app:
+    build: .
+    image: study-planner:latest
+    init: true
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - '127.0.0.1:${APP_PORT:-4000}:4000'
+    # JWT_SECRET y los ajustes opcionales llegan del .env de la raíz.
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: postgres://study_planner:study_planner_dev@postgres:5432/study_planner
+      CLIENT_ORIGIN: ${APP_ORIGIN:-http://localhost:4000}
+      # En HTTP las cookies no pueden ser Secure; detrás de un proxy con HTTPS, pon true.
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      TRUST_PROXY: ${TRUST_PROXY:-0}
+      WORKERS: ${WORKERS:-1}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      APPLE_CLIENT_ID: ${APPLE_CLIENT_ID:-}
+    volumes:
+      # La misma carpeta que usa `npm run dev`: los archivos subidos se ven desde los dos modos.
+      - ./server/uploads:/app/server/uploads
+    restart: unless-stopped
+
   postgres:
     image: postgres:17.6-alpine
     environment:
@@ -22,9 +56,11 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+    restart: unless-stopped
 
   redis:
     image: redis:7.4.5-alpine
+    profiles: [varias-maquinas]
     ports:
       - '127.0.0.1:6379:6379'
     healthcheck:
@@ -36,6 +72,7 @@ services:
   # Almacenamiento de archivos compatible con S3 (credenciales en docker/seaweedfs-s3.json).
   s3:
     image: chrislusf/seaweedfs:3.97
+    profiles: [varias-maquinas]
     command: server -dir=/data -s3 -s3.config=/etc/seaweedfs/s3.json -ip.bind=0.0.0.0
     ports:
       - '127.0.0.1:8333:8333'

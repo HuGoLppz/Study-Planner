@@ -1,6 +1,7 @@
 // Claves de caché de TanStack Query. Agrupadas por recurso para invalidar en bloque.
 export const qk = {
   me: ["auth", "me"],
+  oauth: { providers: ["auth", "oauth", "providers"], links: ["auth", "oauth", "links"] },
   dashboard: (params) => ["dashboard", params],
   tasks: {
     all: ["tasks"],

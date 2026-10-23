@@ -115,6 +115,7 @@ mismas; `npm run db:import-sqlite` pasa una base antigua con los mismos identifi
 |-----------------------|-------------------------------------|-------------------------------------------------------------------|
 | `Usuarios`            | `usuario_id` (9 caracteres)         | cuenta, perfil, foto, privacidad y tema                           |
 | `Ajustes_Pomodoro`    | `usuario_id` (1:1)                  | minutos de trabajo y descanso, ciclos hasta el descanso largo     |
+| `Cuentas_Externas`    | `cuenta_id`                         | cuenta de Google o Apple vinculada a un usuario; única por (`proveedor`, `sujeto`) y por (`usuario_id`, `proveedor`) |
 | `Amigos`              | `amistad_id`                        | una fila por pareja: solicitud (`pending`) o amistad (`accepted`) |
 | `Asignaturas`         | `asignatura_id`                     | asignaturas de cada usuario con su color                          |
 | `Tareas`              | `tarea_id`                          | tareas personales                                                 |
@@ -244,6 +245,10 @@ Errores: `{ error: { message, code, fields? } }` con 400, 401, 403, 404, 409, 41
 | Autenticación   | `POST /auth/register` · `POST /auth/login`             | crea sesión (201 / 200)                        |
 |                 | `POST /auth/logout` · `GET /auth/me`                   | cierra sesión (204) / usuario actual           |
 |                 | `PATCH /auth/password`                                 | cambia contraseña y renueva la sesión          |
+|                 | `GET /auth/oauth/providers`                            | proveedores activados (Google, Apple) y su clientId |
+|                 | `POST /auth/oauth/:provider`                           | entra con una cuenta vinculada (`credential` = id_token) |
+|                 | `GET /auth/oauth/links` · `POST /auth/oauth/:provider/link` | cuentas vinculadas / vincular una (201) |
+|                 | `DELETE /auth/oauth/:provider`                         | desvincula (204)                               |
 | Usuarios        | `GET /users/search?q=`                                 | por nombre o identificador, respeta privacidad |
 |                 | `GET /users/handle/:handle`                            | perfil público según privacidad                |
 |                 | `PATCH /users/me` · `/me/privacy` · `/me/preferences`  | datos, privacidad, preferencias                |

@@ -31,6 +31,7 @@ const SESSION_PROBES = [
   "/auth/login",
   "/auth/register",
   "/auth/password",
+  "/auth/oauth",
 ];
 
 http.interceptors.response.use(

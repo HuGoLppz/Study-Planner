@@ -5,6 +5,7 @@ import { AcademicSummary } from "../components/profile/AcademicSummary.jsx";
 import { ProfileIdentity } from "../components/profile/ProfileIdentity.jsx";
 import {
   AvatarEditor,
+  LinkedAccounts,
   PasswordForm,
   PrivacySettings,
   ProfileForm,
@@ -65,6 +66,7 @@ export default function ProfilePage() {
           <Section title="Contraseña" id="profile-password">
             <PasswordForm />
           </Section>
+          <LinkedAccounts />
         </div>
       </div>
 

@@ -10,6 +10,8 @@ import { validate } from "../middleware/validate.js";
 import {
   changePasswordSchema,
   loginSchema,
+  oauthCredentialSchema,
+  oauthProviderSchema,
   registerSchema,
 } from "../validators/auth.schemas.js";
 
@@ -29,6 +31,29 @@ authRouter.post(
   auth.login,
 );
 authRouter.post("/logout", auth.logout);
+
+// Inicio de sesión con Google o Apple (cuentas ya vinculadas desde el perfil).
+authRouter.get("/oauth/providers", auth.oauthProviders);
+authRouter.get("/oauth/links", requireAuth, auth.oauthLinks);
+authRouter.post(
+  "/oauth/:provider",
+  authIpLimiter,
+  validate(oauthCredentialSchema),
+  auth.oauthLogin,
+);
+authRouter.post(
+  "/oauth/:provider/link",
+  requireAuth,
+  passwordLimiter,
+  validate(oauthCredentialSchema),
+  auth.oauthLink,
+);
+authRouter.delete(
+  "/oauth/:provider",
+  requireAuth,
+  validate(oauthProviderSchema),
+  auth.oauthUnlink,
+);
 authRouter.get("/me", requireAuth, auth.me);
 authRouter.patch(
   "/password",

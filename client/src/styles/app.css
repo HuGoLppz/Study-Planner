@@ -1462,19 +1462,41 @@ a {
    Layout privado
    ====================================================================== */
 
+/* La página no hace scroll: lo hace la hoja de contenido (#contenido), sin barra visible. En
+   ordenador y tablet, html y body no pueden desplazarse aunque algo sobresalga de la ventana. */
+@media (min-width: 768px) {
+  html:has(.app-layout-app),
+  body:has(.app-layout-app) {
+    height: 100%;
+    overflow: hidden;
+  }
+}
+
 .app-layout-app {
   display: grid;
   grid-template-columns: var(--rail-width) minmax(0, 1fr);
-  min-height: 100dvh;
+  height: 100dvh;
+  overflow: hidden;
 }
 
+/* position: relative hace de la hoja el bloque contenedor de lo absoluto de dentro (.visually-hidden…),
+   que si no se colocaría respecto a body y volvería a alargar la página. */
 .app-layout-sheet {
+  position: relative;
   min-width: 0;
-  min-height: calc(100dvh - 24px);
+  height: calc(100dvh - 24px);
   margin: 12px 12px 12px 0;
   border-radius: var(--radius-sheet);
   background: var(--sheet);
   outline: none;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+}
+
+.app-layout-sheet::-webkit-scrollbar {
+  display: none;
 }
 
 .app-layout-skip {
@@ -1507,12 +1529,12 @@ a {
 
   .app-layout-sheet {
     margin: 0;
-    min-height: calc(100dvh - var(--topbar-height));
+    height: calc(100dvh - var(--topbar-height));
     border-radius: 0;
   }
 
   .app-layout-app[data-immersive] .app-layout-sheet {
-    min-height: 100dvh;
+    height: 100dvh;
   }
 }
 
@@ -1585,7 +1607,9 @@ a {
 }
 
 .rail-link.active::before,
-.rail-link.active::after {
+.rail-link.active::after,
+.rail-profile.active::before,
+.rail-profile.active::after {
   content: "";
   position: absolute;
   right: 0;
@@ -1594,7 +1618,8 @@ a {
   pointer-events: none;
 }
 
-.rail-link.active::before {
+.rail-link.active::before,
+.rail-profile.active::before {
   top: -14px;
   background: radial-gradient(
     circle at 0 0,
@@ -1603,7 +1628,8 @@ a {
   );
 }
 
-.rail-link.active::after {
+.rail-link.active::after,
+.rail-profile.active::after {
   bottom: -14px;
   background: radial-gradient(
     circle at 0 100%,
@@ -1625,6 +1651,7 @@ a {
   gap: 4px;
   margin-top: auto;
   padding-top: var(--space-5);
+  transform:translateY(-22px)
 }
 
 .rail-bell {
@@ -1650,6 +1677,7 @@ a {
 }
 
 .rail-profile {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -1658,6 +1686,7 @@ a {
   border-radius: 12px 0 0 12px;
   text-decoration: none;
   color: var(--ink);
+  transition: background-color var(--duration) var(--ease-out);
 }
 
 .rail-profile:hover {
@@ -4308,6 +4337,57 @@ a {
   gap: var(--space-4);
 }
 
+.profile-links {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.profile-links-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.profile-links-row:last-child {
+  border-bottom: 0;
+}
+
+.profile-links-icon {
+  flex: none;
+}
+
+.profile-links-text {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+}
+
+.profile-links-name {
+  font-weight: 650;
+}
+
+/* El botón de Google, más ancho que el texto, va en una fila propia debajo de la cuenta. */
+.profile-links-row {
+  flex-wrap: wrap;
+}
+
+.profile-links-row .auth-social-google {
+  flex: 1 0 100%;
+  min-height: 0;
+}
+
+@media (max-width: 767px) {
+  .profile-links-row > .button {
+    flex-basis: 100%;
+  }
+}
+
 .profile-logout {
   margin-top: var(--space-7);
 }
@@ -5615,6 +5695,37 @@ a {
 
 .auth-reveal:hover {
   color: var(--ink);
+}
+
+.auth-social {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-3);
+  margin-top: var(--space-5);
+}
+
+.auth-social-divider {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  color: var(--ink-2);
+  font-size: var(--fs-14);
+}
+
+.auth-social-divider::before,
+.auth-social-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--rule);
+}
+
+/* El botón de Google lo dibuja Google dentro de este contenedor. */
+.auth-social-google {
+  display: flex;
+  justify-content: center;
+  min-height: 44px;
+  color-scheme: light;
 }
 
 .auth-switch {

@@ -57,6 +57,8 @@ export function AuthProvider({ children }) {
       setUser,
       login: async (credentials) => setUser(await authApi.login(credentials)),
       register: async (data) => setUser(await authApi.register(data)),
+      loginWithProvider: async (provider, credential) =>
+        setUser(await authApi.oauthLogin(provider, credential)),
       logout: async () => {
         try {
           await authApi.logout();

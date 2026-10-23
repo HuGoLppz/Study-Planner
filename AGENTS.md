@@ -32,7 +32,8 @@ Desde la raíz:
 | `npm run build` | Compila el cliente en `client/dist` |
 | `npm start` | API en modo producción |
 | `npm run seed` / `npm run seed:clear` | Crea o borra las cuentas de demostración |
-| `npm run services:up` / `npm run services:down` | Arranca o para PostgreSQL, Redis y S3 de desarrollo (Docker) |
+| `npm run services:up` / `npm run services:down` | Arranca o para PostgreSQL, Redis y S3 de desarrollo, sin la app (Docker) |
+| `docker compose up -d --build` | La app entera en Docker (imagen de `Dockerfile`, ajustes en el `.env` de la raíz) |
 | `npm run db:import-sqlite` | Pasa una base SQLite antigua a una base PostgreSQL vacía |
 
 No hay suite de tests ni linter configurados. La verificación mínima de cualquier cambio es:
@@ -49,6 +50,15 @@ No hay suite de tests ni linter configurados. La verificación mínima de cualqu
   el servidor no arranca: `config/env.js` valida al iniciar. `DATABASE_URL` también es obligatoria.
 - Nunca escribas secretos en el código ni los subas al repositorio. `.env*` está en `.gitignore`
   salvo los `.env.example`.
+- La app en Docker lee el `.env` de la raíz (copia `.env.example`), no `server/.env`. Si añades una
+  variable que haga falta en Docker, pásala en el servicio `app` de `docker-compose.yml`.
+- Entrar con Google y Apple (`services/oauth.service.js`): el cliente solo consigue un id_token y el
+  servidor lo verifica siempre (firma, emisor, audiencia, caducidad). Nunca se vincula ni se crea una
+  cuenta por coincidir el correo: solo entra quien vinculó su cuenta estando con sesión. Cada proveedor
+  se activa con `GOOGLE_CLIENT_ID` / `APPLE_CLIENT_ID`; sin ellos no sale ningún botón ni se abre nada
+  en la CSP. Si añades un proveedor, añádelo a `OAUTH_PROVIDERS` y al `CHECK` de `Cuentas_Externas`.
+- La API sirve la web con una CSP sin `unsafe-inline`: nada de `<script>` en línea en `index.html`
+  (el tema se aplica desde `public/theme.js`). Prueba la imagen tras cambiar `index.html` o la CSP.
 - En desarrollo el cliente no necesita `.env`: Vite reenvía `/api` y `/socket.io` a
   `VITE_DEV_API_TARGET` (por defecto `http://localhost:4000`).
 

@@ -48,7 +48,9 @@ Zod (validación), Multer (subidas), Helmet, CORS y express-rate-limit.
 ```
 Study-Planner/
 ├── package.json            scripts para ejecutar todo desde la raíz
-├── docker-compose.yml      PostgreSQL, Redis y S3 (SeaweedFS) para desarrollo
+├── Dockerfile              imagen de producción (API + frontend compilado)
+├── docker-compose.yml      la app entera en Docker, y PostgreSQL, Redis y S3 para desarrollar
+├── .env.example            ajustes de la app en Docker (copiar como .env)
 ├── docker/                 configuración de esos servicios
 ├── scripts/                dev.mjs (API y web a la vez) y load-test.mjs (prueba de carga)
 ├── docs/ARCHITECTURE.md    análisis, modelo de datos, índices, API, navegación y diseño
@@ -96,11 +98,47 @@ Study-Planner/
 
 ## Requisitos
 
+Para usar la app basta con [Docker](https://www.docker.com/products/docker-desktop/) (ver
+[Todo en Docker](#todo-en-docker)). Para desarrollarla:
+
 - **Node.js 20.19 o superior** (probado con Node 24)
 - **PostgreSQL 14 o superior**. Para desarrollo, el repositorio trae un `docker-compose.yml`: basta con
   tener [Docker](https://www.docker.com/products/docker-desktop/) instalado.
 - Solo para repartir la API entre varias máquinas: **Redis** y un almacenamiento **compatible con S3**
   (también incluidos en `docker-compose.yml`).
+
+---
+
+## Todo en Docker
+
+La app completa (web, API y PostgreSQL) arranca sin Node ni npm en tu máquina:
+
+1. Copia `.env.example` como `.env` en la raíz y pon un `JWT_SECRET` aleatorio de 32 caracteres o más.
+2. Arranca (la primera vez compila la imagen, unos minutos):
+
+   ```bash
+   docker compose up -d --build
+   ```
+
+3. Abre `http://localhost:4000`.
+
+| Qué | Comando |
+|-----|---------|
+| Ver el registro de la app | `docker compose logs -f app` |
+| Actualizar tras cambiar el código | `docker compose up -d --build` |
+| Parar | `docker compose down` |
+| Parar y borrar la base de datos | `docker compose down -v` |
+
+- La imagen (`Dockerfile`) compila el frontend y lo sirve la propia API (`SERVE_CLIENT=true`), con
+  `NODE_ENV=production`, sin herramientas de compilación y con un usuario sin privilegios.
+- Usa la misma base de datos (`study_planner`) y la misma carpeta de archivos (`server/uploads`) que
+  `npm run dev`: lo que hagas en un modo se ve en el otro. No los arranques a la vez en el puerto 4000;
+  si quieres los dos, cambia `APP_PORT` y `APP_ORIGIN` en `.env`.
+- En un servidor con dominio, pon delante un proxy con HTTPS (Caddy, Nginx…) y en `.env`
+  `APP_ORIGIN=https://tu-dominio.com`, `COOKIE_SECURE=true` y `TRUST_PROXY=1`. Cambia también la
+  contraseña de PostgreSQL de `docker-compose.yml` antes de crear la base.
+- Redis y S3 no arrancan con la app: están en el perfil `varias-maquinas` (ver
+  [Varias máquinas](#varias-máquinas)).
 
 ---
 
@@ -118,6 +156,30 @@ npm run install:all
 npm install --prefix server
 npm install --prefix client
 ```
+
+---
+
+## Entrar con Google y Apple
+
+Cada persona vincula su cuenta de Google o Apple desde **Perfil, Cuentas vinculadas** y después puede
+entrar con un botón en la página de acceso. Hasta que no la vincula, esa cuenta no entra: así nadie
+puede acceder a una cuenta ajena solo por tener el mismo correo. Los botones solo aparecen si el
+servidor tiene configurado el proveedor. No hace falta ningún secreto: solo el identificador de cliente.
+
+**Google** (funciona también en `localhost`):
+
+1. En [Google Cloud Console](https://console.cloud.google.com/apis/credentials), crea un proyecto y
+   una credencial **ID de cliente de OAuth**, tipo *Aplicación web*.
+2. En *Orígenes de JavaScript autorizados* añade `http://localhost:5173` (desarrollo),
+   `http://localhost:4000` (Docker) y el dominio real cuando lo tengas. No hacen falta URI de redirección.
+3. Copia el ID de cliente (`…apps.googleusercontent.com`) en `GOOGLE_CLIENT_ID`: en `server/.env` para
+   `npm run dev`, o en el `.env` de la raíz para Docker. Reinicia la API.
+
+**Apple** (exige cuenta de Apple Developer de pago, HTTPS y un dominio real; no funciona en `localhost`):
+
+1. En *Certificates, Identifiers & Profiles*, crea un **Services ID** con *Sign in with Apple*.
+2. Regístrale tu dominio y, como *Return URL*, la dirección de la web (`https://tu-dominio.com`).
+3. Pon el identificador del Services ID en `APPLE_CLIENT_ID`.
 
 ---
 
@@ -180,6 +242,8 @@ cp server/.env.example server/.env
 | `UPLOAD_DIR` | No | Carpeta de archivos subidos (por defecto `uploads`) |
 | `MAX_FILE_SIZE_MB` | No | Tamaño máximo de archivo de sala (por defecto `10`) |
 | `MAX_AVATAR_SIZE_MB` | No | Tamaño máximo de la foto de perfil que se sube (por defecto `8`); se guarda optimizada |
+| `GOOGLE_CLIENT_ID` | No | Activa "Entrar con Google" y la vinculación desde el perfil: ID de cliente de OAuth de Google Cloud (ver [Entrar con Google y Apple](#entrar-con-google-y-apple)) |
+| `APPLE_CLIENT_ID` | No | Activa "Entrar con Apple": Services ID de Apple Developer (exige HTTPS y un dominio registrado) |
 | `SERVE_CLIENT` | No | `true` para que Express sirva el frontend compilado |
 | `CLIENT_DIST` | No | Ruta al frontend compilado (por defecto `../client/dist`) |
 | `COMPRESSION` | No | `false` para no comprimir en Node cuando ya lo hace un proxy o CDN (por defecto `true`) |
@@ -228,7 +292,7 @@ otro dominio:
 ## Ejecutar en desarrollo
 
 Con `server/.env` creado, arranca PostgreSQL (y Redis y S3, aunque en desarrollo no hacen falta) y
-después la app:
+después la app (si la tienes en marcha en Docker, para antes su contenedor con `docker compose stop app`):
 
 ```bash
 npm run services:up
@@ -283,6 +347,7 @@ Genera `client/dist/`.
 
 ### 2a. Un único servicio (recomendado)
 
+La forma más sencilla es la imagen de Docker (ver [Todo en Docker](#todo-en-docker)). Sin Docker,
 Express sirve la API y el frontend desde el mismo origen, así las cookies funcionan sin configuración
 extra. En `server/.env`:
 
@@ -447,6 +512,9 @@ juntos sin errores; la ganancia de capacidad se mide con servidores en máquinas
   y sin metadatos (EXIF, ubicación GPS). La imagen original no se guarda.
 - Archivos fuera de cualquier carpeta pública, con nombre aleatorio, tipos permitidos, tamaño máximo,
   verificación de la firma binaria y descarga solo para participantes de la sala.
+- Entrar con Google o Apple: el servidor verifica la firma, el emisor, la audiencia y la caducidad del
+  id_token con las claves públicas del proveedor; solo entra quien tiene la cuenta vinculada desde su
+  perfil (nunca se une una cuenta por coincidir el correo). No hay secretos de OAuth que guardar.
 - Ningún secreto en el código: todo se configura con variables de entorno.
 
 ---
@@ -460,7 +528,8 @@ juntos sin errores; la ganancia de capacidad se mide con servidores en máquinas
 | `npm run build` | Compila el frontend |
 | `npm start` | Arranca la API en producción |
 | `npm run seed` / `npm run seed:clear` | Crea o borra los datos de demostración |
-| `npm run services:up` / `npm run services:down` | Arranca o para PostgreSQL, Redis y S3 de desarrollo (Docker) |
+| `npm run services:up` / `npm run services:down` | Arranca o para PostgreSQL, Redis y S3 de desarrollo, sin la app (Docker) |
+| `docker compose up -d --build` | La app entera en Docker en `http://localhost:4000` (sin npm) |
 | `npm run db:import-sqlite` | Pasa una base SQLite de la versión anterior a PostgreSQL |
 | `npm run seed:load` | Genera datos para pruebas de carga (solo contra una base de pruebas) |
 | `npm run load-test` | Lanza la prueba de carga contra una API de pruebas |

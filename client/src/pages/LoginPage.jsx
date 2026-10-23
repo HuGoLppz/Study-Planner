@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { Link } from "react-router-dom";
 import { z } from "zod";
+import { SocialLogin } from "../components/auth/SocialButtons.jsx";
 import { Button } from "../components/ui/Button.jsx";
 import { Field, Input } from "../components/ui/Form.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
@@ -48,7 +49,7 @@ export function PasswordInput({ registration, autoComplete, ...inputProps }) {
 
 export default function LoginPage() {
   useDocumentTitle("Entrar");
-  const { login } = useAuth();
+  const { login, loginWithProvider } = useAuth();
   const [formError, setFormError] = useState(null);
   const {
     register,
@@ -95,6 +96,18 @@ export default function LoginPage() {
           Entrar
         </Button>
       </form>
+
+      <SocialLogin
+        onCredential={async (provider, credential) => {
+          setFormError(null);
+          try {
+            await loginWithProvider(provider, credential);
+          } catch (error) {
+            setFormError(error.message);
+          }
+        }}
+        onError={(error) => setFormError(error.message)}
+      />
 
       <p className="auth-switch">
         ¿Aún no tienes cuenta? <Link to="/registro">Crea una</Link>

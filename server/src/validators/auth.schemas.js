@@ -1,3 +1,4 @@
+import { OAUTH_PROVIDERS } from "../config/constants.js";
 import { request, z } from "./common.js";
 
 export const passwordRule = z
@@ -34,3 +35,13 @@ export const changePasswordSchema = request({
     newPassword: passwordRule,
   }),
 });
+
+const providerParams = z.object({ provider: z.enum(OAUTH_PROVIDERS) });
+
+// Un id_token (JWT) del proveedor; el servidor lo verifica, el cliente no es de fiar.
+export const oauthCredentialSchema = request({
+  params: providerParams,
+  body: z.object({ credential: z.string().min(20).max(8192) }),
+});
+
+export const oauthProviderSchema = request({ params: providerParams });

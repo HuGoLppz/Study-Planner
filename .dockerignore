@@ -1,0 +1,18 @@
+# Solo entra en la imagen lo que copia el Dockerfile: nada de dependencias instaladas en Windows,
+# compilaciones previas, datos, archivos subidos ni secretos.
+**/node_modules
+**/dist
+**/.env
+**/.env.*
+!**/.env.example
+server/data
+server/uploads
+server/uploads-*
+.git
+.vscode
+.idea
+docs
+scripts
+docker
+*.log
+*.md

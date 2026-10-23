@@ -16,6 +16,29 @@ import {
 import { apiRouter } from "./routes/index.js";
 import { ApiError } from "./utils/ApiError.js";
 
+// La política de contenido solo abre lo que hace falta; los scripts de Google y Apple, únicamente si
+// ese inicio de sesión está configurado.
+function contentSecurityPolicy() {
+  const directives = {
+    "img-src": ["'self'", "data:", "blob:"],
+    "connect-src": ["'self'", ...env.clientOrigins],
+  };
+  if (env.oauth.google) {
+    directives["script-src"] = ["'self'", "https://accounts.google.com/gsi/client"];
+    directives["frame-src"] = ["https://accounts.google.com/gsi/"];
+    directives["connect-src"].push("https://accounts.google.com/gsi/");
+    directives["style-src"] = ["'self'", "https:", "'unsafe-inline'"];
+  }
+  if (env.oauth.apple) {
+    directives["script-src"] = [
+      ...(directives["script-src"] ?? ["'self'"]),
+      "https://appleid.cdn-apple.com",
+    ];
+    directives["connect-src"].push("https://appleid.apple.com");
+  }
+  return directives;
+}
+
 export function createApp() {
   const app = express();
 
@@ -24,24 +47,22 @@ export function createApp() {
 
   app.use(
     helmet({
-      contentSecurityPolicy: {
-        directives: {
-          "img-src": ["'self'", "data:", "blob:"],
-          "connect-src": ["'self'", ...env.clientOrigins],
-        },
-      },
+      contentSecurityPolicy: { directives: contentSecurityPolicy() },
+      // Los popups de Google y Apple devuelven el token a la ventana que los abrió.
+      crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" },
     }),
   );
+  // Con SERVE_CLIENT la web llega del mismo origen que la API, y el navegador también manda Origin
+  // al pedir sus scripts y estilos: el origen propio se admite siempre, como en verifyOrigin.
   app.use(
-    cors({
-      origin(origin, callback) {
-        if (!origin || env.clientOrigins.includes(origin))
-          return callback(null, true);
-        return callback(
-          ApiError.forbidden("Origen no permitido", "ORIGIN_REJECTED"),
-        );
-      },
-      credentials: true,
+    cors((req, callback) => {
+      const origin = req.get("origin");
+      const selfOrigin = `${req.protocol}://${req.get("host")}`;
+      if (!origin || origin === selfOrigin || env.clientOrigins.includes(origin))
+        return callback(null, { origin: true, credentials: true });
+      return callback(
+        ApiError.forbidden("Origen no permitido", "ORIGIN_REJECTED"),
+      );
     }),
   );
   // gzip/brotli de JSON y del frontend: las respuestas ocupan entre 3 y 4 veces menos. Brotli con

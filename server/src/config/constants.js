@@ -26,6 +26,9 @@ export const TASK_STATUSES = ["pending", "in_progress", "completed"];
 
 export const ROOM_ROLES = ["admin", "member"];
 
+// Proveedores de inicio de sesión externos que se pueden vincular a una cuenta.
+export const OAUTH_PROVIDERS = ["google", "apple"];
+
 export const PROFILE_VISIBILITY = ["public", "friends", "private"];
 export const THEMES = ["system", "light", "dark"];
 
